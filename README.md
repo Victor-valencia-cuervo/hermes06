@@ -175,3 +175,13 @@ Hecho con 💜 por **Víctor Valencia** · Hermes v4.1.0
 ⬆️ [Volver arriba](#-hermes)
 
 </div>
+
+---
+
+## 📱 Versión móvil (APK Android)
+
+Hermes empaquetado con **Capacitor**. Mismo código web, sin login obligatorio (Supabase/Google es opcional).
+
+- **Segundo plano:** servicio en primer plano (`mediaPlayback`) + Media Session (controles en pantalla de bloqueo/Bluetooth). Ver `src/lib/native-bg.js`.
+- **Compilar APK:** en GitHub → *Actions → Build APK → Run workflow* y descarga `hermes-debug-apk`. O local: `npm run android:sync && npm run android:open` (Android Studio, JDK 21).
+- **Límite:** YouTube embebido se pausa en segundo plano (sus términos). Para que siga sonando, Hermes usa el "gemelo" de Audius, tus archivos locales y las radios.

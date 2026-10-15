@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { setNativePlayback } from '../lib/native-bg';
 import { Heart, AlertTriangle, Radio, History, Headphones } from 'lucide-react';
 import useStore from './useStore';
 import { YT_STATE } from '../components/YTEmbed';
@@ -1133,6 +1134,11 @@ export default function usePlayer(toast, local = null) {
       });
     } catch { /* noop */ }
   }, [track]);
+
+  // APK: servicio en primer plano mientras suena (segundo plano real con pantalla apagada)
+  useEffect(() => {
+    setNativePlayback(!!playing && !!track, { title: track?.title, artist: track?.artist });
+  }, [playing, track]);
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
