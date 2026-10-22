@@ -1,6 +1,6 @@
 /* Hermes offline: App Shell + assets en caché.
  * Si cambias mascotas/videos/css/js, sube la versión para forzar actualización. */
-const CACHE = 'hermes-v10';
+const CACHE = 'hermes-v11';
 const CORE = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/robots.txt', '/sitemap.xml', '/icon/hermes-icon.png', '/icon/Roxy-img-white.png'];
 
 self.addEventListener('install', (e) => {

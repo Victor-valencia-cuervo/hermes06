@@ -8,6 +8,7 @@ import { markBlockedVideo, getRelated, searchYouTube } from '../services/youtube
 import { getYTMix } from '../services/ytmix';
 import { submitListen } from '../services/scrobble';
 import { getOriginalCover } from '../services/covers';
+import { prefersYT, setPrefYT } from '../lib/artPref';
 import { SAFE } from '../lib/safe';
 import { findBgTwin, peekBgTwin } from '../services/bgtwin';
 import { normalizeTrackState } from '../lib/music-state';
@@ -923,17 +924,18 @@ export default function usePlayer(toast, local = null) {
   // Si el art aún es thumb YT, se reemplaza por iTunes 600 / MB-CAA en fondo.
   useEffect(() => {
     const t = track;
-    if (!t?.title || !/i\.ytimg\.com/.test(String(t.art || ''))) return undefined;
+    if (!t?.title || !/i\.ytimg\.com/.test(String(t.art || '')) || prefersYT(t.id)) return undefined;
     let dead = false;
     (async () => {
       try {
         const url = await getOriginalCover(t.title, t.artist, { videoId: t.videoId });
         if (dead || !url || /i\.ytimg\.com/.test(url)) return;
         if (trackRef.current?.id !== t.id) return;
-        const nt = { ...trackRef.current, art: url, artOriginal: true };
+        const yt = trackRef.current.art;
+        const nt = { ...trackRef.current, art: url, artOriginal: true, ytArt: yt };
         setTrack(nt); setSavedTrack(nt);
         trackRef.current = nt;
-        setQueue((qq) => qq.map((x) => (x.id === t.id ? { ...x, art: url, artOriginal: true } : x)));
+        setQueue((qq) => qq.map((x) => (x.id === t.id ? { ...x, art: url, artOriginal: true, ytArt: yt } : x)));
       } catch { /* conserva thumb */ }
     })();
     return () => { dead = true; };
@@ -1203,7 +1205,35 @@ export default function usePlayer(toast, local = null) {
     return () => window.removeEventListener('keydown', onKey);
   }, [muted, next, prev, seekBy, setVolume, toggle, toggleMute, volume, toggleShuffle, cycleRepeat]);
 
+  /** Botón "Revertir carátula": alterna entre la original y la miniatura de YouTube del tema que suena.
+   *  Devuelve 'yt' | 'original' | null (null = no hay otra carátula que mostrar). */
+  const toggleArt = useCallback(async () => {
+    const t = trackRef.current;
+    if (!t) return null;
+    const apply = (nt) => {
+      setTrack(nt); setSavedTrack(nt);
+      trackRef.current = nt;
+      setQueue((qq) => qq.map((x) => (x.id === nt.id ? { ...x, art: nt.art, artOriginal: nt.artOriginal, ytArt: nt.ytArt, origArt: nt.origArt } : x)));
+    };
+    if (t.artOriginal && t.ytArt) {
+      setPrefYT(t.id, true);
+      apply({ ...t, art: t.ytArt, origArt: t.art, artOriginal: false });
+      return 'yt';
+    }
+    // Ya está la de YouTube: vuelve a la original (la guardada o la busca ahora).
+    let orig = t.origArt;
+    if (!orig && t.title) {
+      try { orig = await getOriginalCover(t.title, t.artist, { videoId: t.videoId }); } catch { orig = ''; }
+    }
+    if (!orig || /i\.ytimg\.com/.test(orig)) return null;
+    setPrefYT(t.id, false);
+    if (trackRef.current?.id !== t.id) return null;
+    apply({ ...trackRef.current, art: orig, ytArt: trackRef.current.art, artOriginal: true });
+    return 'original';
+  }, [setQueue, setSavedTrack]);
+
   return {
+    toggleArt,
     audio, ytRef, onYTState, onYTError, applyPendingSeek, tick, bgPref, setBgPref, swapToBg,
     track, playing, setPlaying, time, setTime, resolving, retryCurrent, handleAudioError,
     blocked, blockedOpen, dismissBlocked, openBlocked, closeBlocked, stuck,

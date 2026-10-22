@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Menu, Maximize2, Minimize2, PawPrint, Music, Radio } from 'lucide-react';
+import { Routes, Route, Navigate, useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
+import { PATHS, viewFromPath } from './data/routes';
+import { bindContext } from './lib/playContext';
+import { Menu, ArrowLeft, Maximize2, Minimize2, PawPrint, Music, Radio } from 'lucide-react';
 import useStore from './hooks/useStore';
 import useToasts from './hooks/useToasts';
 import useWeather from './hooks/useWeather';
@@ -34,8 +37,6 @@ import HomeView from './views/HomeView';
 // Vistas pesadas en lazy: no van al bundle inicial, cargan al abrirlas.
 const PeerProfileView = lazy(() => import('./views/PeerProfileView'));
 const BlockedSheet = lazy(() => import('./components/BlockedSheet'));
-const FullPlayer = lazy(() => import('./components/FullPlayer'));
-const FullPlayerBitChord = lazy(() => import('./components/FullPlayerBitChord'));
 const FullPlayerSpotify = lazy(() => import('./components/FullPlayerSpotify'));
 const FullPlayerWave = lazy(() => import('./components/FullPlayerWave'));
 const RadioFullPlayer = lazy(() => import('./components/RadioFullPlayer'));
@@ -60,12 +61,34 @@ const ViewFallback = () => (
 import PetLayer from './pets/PetLayer';
 import { DEFAULT_PETS, normalizePets } from './pets/settings';
 
+// Rutas con parámetro: leen el :id de la URL y se lo pasan a la vista.
+function ChatRoute({ render }) { const { roomId } = useParams(); return render(roomId || null); }
+function PeerRoute({ render }) { const { uid } = useParams(); return render(uid || null); }
+
 export default function App() {
-  const [view, setView] = useState('home');
-  const [chatRoom, setChatRoom] = useState(null); // sala abierta desde Comunidad
-  const [peerId, setPeerId] = useState(null); // perfil ajeno abierto
-  const [peerReturn, setPeerReturn] = useState('community'); // a dónde vuelve
-  const openPeer = (uid, from) => { setPeerId(uid); setPeerReturn(from || view); setView('peer'); };
+  // Navegación real con React Router: cada opción del menú es una URL (/musica, /clima…).
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navType = useNavigationType();
+  const view = viewFromPath(location.pathname);
+  const setView = (id) => navigate(PATHS[id] || '/');
+  const openRoom = (id) => navigate(`/chat/${id}`);
+  const openPeer = (uid) => navigate(`/perfil/${uid}`);
+  const goBack = (fallback) => { if (window.history.state && window.history.state.idx > 0) navigate(-1); else navigate(fallback || '/', { replace: true }); };
+  // Flechita de volver junto al menú: en las pantallas internas de Música (resultados, artista, álbum…).
+  const musicSub = /^\/musica\/[^/]+/.test(location.pathname);
+  const immersive = /^\/musica\/(artista|album)\//.test(location.pathname); // traen su propia flecha sobre la foto
+  const mainRef = useRef(null);
+  // Scroll: arriba al entrar a una pantalla; al volver atrás recupera dónde estabas.
+  const scrollPos = useRef(new Map());
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return undefined;
+    const key = location.key;
+    const saved = navType === 'POP' ? scrollPos.current.get(key) : 0;
+    requestAnimationFrame(() => { try { el.scrollTo(0, saved || 0); } catch { el.scrollTop = saved || 0; } });
+    return () => { scrollPos.current.set(key, el.scrollTop); };
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const [menu, setMenu] = useState(false);
   const [full, setFull] = useState(false);
   const [radioFull, setRadioFull] = useState(false);
@@ -88,9 +111,9 @@ export default function App() {
   const [unit, setUnit] = useStore('h_unit', 'c');
   const [geoAsked, setGeoAsked] = useStore('h_geo_asked', false);
   const [wxAlerts, setWxAlerts] = useStore('h_wx', false);
-  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'hermes-default');
-  // Migración: hermes->hermes-default, bitchord->hermes-02, spotify->hermes-03 (una sola vez).
-  const playerTheme = playerThemeRaw === 'hermes' ? 'hermes-default' : playerThemeRaw === 'bitchord' ? 'hermes-02' : playerThemeRaw === 'spotify' ? 'hermes-03' : playerThemeRaw;
+  // Solo hay dos estilos de reproductor: BitChord (hermes-04, por defecto) y Spotify (hermes-03).
+  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'hermes-04');
+  const playerTheme = playerThemeRaw === 'hermes-03' || playerThemeRaw === 'spotify' ? 'hermes-03' : 'hermes-04';
   useEffect(() => {
     if (playerThemeRaw !== playerTheme) setPlayerTheme(playerTheme);
   }, [playerThemeRaw, playerTheme]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -132,6 +155,7 @@ export default function App() {
   useWeatherAlerts({ enabled: wxAlerts, weather, toast });
   const local = useLocalTracks(toast);
   const player = usePlayer(toast, local);
+  useEffect(() => { bindContext(player.track?.id); }, [player.track?.id]);
   usePresence(auth, player); // publica lo que suena para tus contactos
   // Confirmar antes de salir/recargar SOLO si suena música (no se para por accidente).
   // El navegador pone su texto; en PWA instalada a veces no dispara (límite del sistema).
@@ -235,23 +259,27 @@ export default function App() {
   useEffect(() => { const k = (e) => { if (e.key !== 'Escape') return; if (full) closeFull(); else if (radioFull) setRadioFull(false); else setMenu(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [full, radioFull]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { document.body.style.overflow = (menu || full || radioFull) ? 'hidden' : ''; }, [menu, full, radioFull]);
 
-  const views = {
-    home: <HomeView {...{ now, greeting, quote, weather, react, reminders, place }} onPoke={poke} onOpenWeather={() => setView('weather')} />,
-    weather: <WeatherView {...{ place, setPlace, unit, setUnit, toast }} />,
-    music: <MusicView p={player} toast={toast} local={local} auth={auth} onOpenRoom={(id) => { setChatRoom(id); setView('chat'); }} />,
-    profile: <ProfileView p={player} toast={toast} name={name} setName={setName} auth={auth} cloud={cloud} />,
-    community: <CommunityView toast={toast} auth={auth} p={player} onOpenRoom={(id) => { setChatRoom(id); setView('chat'); }} onOpenPeer={(uid) => openPeer(uid, 'community')} />,
-    chat: <ChatView p={player} toast={toast} name={name} auth={auth} initialRoom={chatRoom} onOpenPeer={(uid) => openPeer(uid, 'chat')} />,
-    peer: <PeerProfileView uid={peerId} p={player} toast={toast} auth={auth} onBack={() => setView(peerReturn)} onOpenRoom={(id) => { setChatRoom(id); setView('chat'); }} />,
-    radios: <RadiosView r={radio} toast={toast} />,
-    reminders: <RemindersView {...{ reminders, setReminders, toast }} />,
-    notes: <NotesView api={notesApi} toast={toast} />,
-    shortcuts: <ShortcutsView {...{ shortcuts, setShortcuts }} />,
-    tools: <ToolsView />,
-    finance: <FinanceView {...{ tx, setTx }} toast={toast} />,
-    zen: <ZenView onExit={() => setView('home')} />,
-    settings: <SettingsView {...{ dark, setDark, accent, setAccent, name, setName, toast }} auth={auth} cloud={cloud} pets={pets} setPets={setPets} autoLand={autoLand} setAutoLand={setAutoLand} wxAlerts={wxAlerts} setWxAlerts={setWxAlerts} />,
-  };
+  const viewsEl = (
+    <Routes>
+      <Route path="/" element={<HomeView {...{ now, greeting, quote, weather, react, reminders, place }} onPoke={poke} onOpenWeather={() => setView('weather')} />} />
+      <Route path="/clima" element={<WeatherView {...{ place, setPlace, unit, setUnit, toast }} />} />
+      <Route path="/musica/*" element={<MusicView p={player} toast={toast} local={local} auth={auth} onOpenRoom={openRoom} />} />
+      <Route path="/perfil" element={<ProfileView p={player} toast={toast} name={name} setName={setName} auth={auth} cloud={cloud} />} />
+      <Route path="/perfil/:uid" element={<PeerRoute render={(uid) => <PeerProfileView uid={uid} p={player} toast={toast} auth={auth} onBack={() => goBack('/comunidad')} onOpenRoom={openRoom} />} />} />
+      <Route path="/comunidad" element={<CommunityView toast={toast} auth={auth} p={player} onOpenRoom={openRoom} onOpenPeer={openPeer} />} />
+      <Route path="/chat" element={<ChatView p={player} toast={toast} name={name} auth={auth} initialRoom={null} onOpenPeer={openPeer} />} />
+      <Route path="/chat/:roomId" element={<ChatRoute render={(roomId) => <ChatView p={player} toast={toast} name={name} auth={auth} initialRoom={roomId} onOpenPeer={openPeer} />} />} />
+      <Route path="/radios" element={<RadiosView r={radio} toast={toast} />} />
+      <Route path="/recordatorios" element={<RemindersView {...{ reminders, setReminders, toast }} />} />
+      <Route path="/notas" element={<NotesView api={notesApi} toast={toast} />} />
+      <Route path="/atajos" element={<ShortcutsView {...{ shortcuts, setShortcuts }} />} />
+      <Route path="/herramientas" element={<ToolsView />} />
+      <Route path="/finanzas" element={<FinanceView {...{ tx, setTx }} toast={toast} />} />
+      <Route path="/zen" element={<ZenView onExit={() => setView('home')} />} />
+      <Route path="/ajustes" element={<SettingsView {...{ dark, setDark, accent, setAccent, name, setName, toast }} auth={auth} cloud={cloud} pets={pets} setPets={setPets} autoLand={autoLand} setAutoLand={setAutoLand} wxAlerts={wxAlerts} setWxAlerts={setWxAlerts} />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 
   return (
     <div className="h-dvh flex overflow-hidden">
@@ -265,8 +293,11 @@ export default function App() {
           radio: radio.current && radioMin ? { title: radio.current.name, playing: radio.playing } : null,
           onMusic: () => setMusicMin(false), onRadio: () => setRadioMin(false) }} /></ErrorBoundary>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden flex items-center justify-between px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
-          <button className="ico-btn" onClick={() => setMenu(true)} aria-label="Abrir menú"><Menu size={22} /></button>
+        <header className={`lg:hidden ${immersive ? 'hidden' : 'flex'} items-center justify-between px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]`}>
+          <span className="flex items-center gap-1">
+            <button className="ico-btn" onClick={() => setMenu(true)} aria-label="Abrir menú"><Menu size={22} /></button>
+            {musicSub && <button className="ico-btn" onClick={() => goBack('/musica')} aria-label="Volver"><ArrowLeft size={22} /></button>}
+          </span>
           <span className="text-xs tracking-[0.2em] uppercase" style={{ color: 'var(--m)' }}>{now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
           <span className="flex items-center">
             {player.track && musicMin && (
@@ -291,10 +322,13 @@ export default function App() {
             </button>
           </span>
         </header>
-        <main className={`flex-1 overflow-y-auto ${view === 'chat' ? 'px-2 lg:px-6 py-2 lg:py-6' : 'px-5 lg:px-10 py-4 lg:py-10'} ${player.track && radio.current ? 'pb-72' : player.track || radio.current ? 'pb-36' : 'pb-24 lg:pb-10'}`}>
+        <main ref={mainRef} className={`flex-1 overflow-y-auto ${view === 'chat' ? 'px-2 lg:px-6 py-2 lg:py-6' : 'px-5 lg:px-10 py-4 lg:py-10'} ${player.track && radio.current ? 'pb-72' : player.track || radio.current ? 'pb-36' : 'pb-24 lg:pb-10'}`}>
           <ErrorBoundary label="contenido" key={view}>
             <Suspense fallback={<ViewFallback />}>
-              <div className={`${view === 'chat' ? 'max-w-none' : 'max-w-3xl lg:max-w-5xl'} mx-auto fin space-y-4`} key={view}>{views[view]}</div>
+              <div className={`${view === 'chat' ? 'max-w-none' : 'max-w-3xl lg:max-w-5xl'} mx-auto fin space-y-4`} key={view}>
+                {musicSub && !immersive && <button className="hidden lg:inline-flex ico-btn !w-auto gap-2 px-3 text-sm" onClick={() => goBack('/musica')} aria-label="Volver"><ArrowLeft size={18} /> Volver</button>}
+                {viewsEl}
+              </div>
             </Suspense>
           </ErrorBoundary>
         </main>
@@ -305,13 +339,9 @@ export default function App() {
       </div>
       <ErrorBoundary label="sonando">
         <Suspense fallback={null}>
-          {full && player.track && (playerTheme === 'hermes-04'
-            ? <FullPlayerWave p={player} toast={toast} onClose={closeFull} />
-            : playerTheme === 'hermes-03'
+          {full && player.track && (playerTheme === 'hermes-03'
             ? <FullPlayerSpotify p={player} toast={toast} onClose={closeFull} />
-            : playerTheme === 'hermes-02'
-              ? <FullPlayerBitChord p={player} toast={toast} dark={dark} onClose={closeFull} />
-              : <FullPlayer p={player} toast={toast} dark={dark} onClose={closeFull} />)}
+            : <FullPlayerWave p={player} toast={toast} onClose={closeFull} />)}
           {radioFull && radio.current && (
             <RadioFullPlayer r={radio} p={player} toast={toast} dark={dark} onClose={() => setRadioFull(false)} />
           )}

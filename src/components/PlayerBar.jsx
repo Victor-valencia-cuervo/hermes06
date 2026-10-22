@@ -9,7 +9,6 @@ import FloatCard from './FloatCard';
 import MiniBarSpotify from './MiniBarSpotify';
 import useArtColors from '../hooks/useArtColors';
 import useStore from '../hooks/useStore';
-import { stage, ensureHidden } from '../lib/yt-stage';
 import { getAvailabilityLabel } from '../lib/music-state';
 
 export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
@@ -19,12 +18,6 @@ export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
   const retriedRef = useRef(null); // id con reintento en curso (sin mutar el track)
   const colors = useArtColors(t?.art);
   const [miniTheme] = useStore('h_mini_theme', 'float');
-  // Slot oculto del player (modo solo-audio permanente)
-  useEffect(() => {
-    stage.hiddenSlot = hiddenRef.current;
-    ensureHidden();
-    return () => { if (stage.hiddenSlot === hiddenRef.current) stage.hiddenSlot = null; };
-  }, []);
   if (!t) return null;
 
   const cur0 = p.time?.cur || 0;

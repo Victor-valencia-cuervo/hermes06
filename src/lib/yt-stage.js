@@ -1,32 +1,50 @@
 /**
  * Escenario del reproductor YouTube: UN solo player oculto (solo audio).
- * El modo video se eliminó (lento y con fallos): el iframe vive siempre
- * en el slot oculto de 2px, sin moverse ni redimensionarse.
+ *
+ * FIX (carga infinita en la primera reproducción): antes el player se creaba
+ * en un <div> suelto que solo se enganchaba al DOM cuando <PlayerBar/> montaba
+ * su slot (y PlayerBar no pinta nada hasta que hay una canción). Un iframe
+ * fuera del documento no carga, así que onReady nunca llegaba y la primera
+ * canción se quedaba "cargando" hasta recargar la página.
+ * Ahora el host vive SIEMPRE en document.body desde el primer momento y
+ * nunca se mueve (mover un iframe en el DOM lo recarga).
  */
-export const stage = { container: null, hiddenSlot: null };
+export const stage = { container: null, host: null };
+
+function ensureHost() {
+  if (typeof document === 'undefined') return null;
+  if (stage.host && stage.host.isConnected) return stage.host;
+  const h = document.createElement('div');
+  h.id = 'yt-audio-host';
+  h.setAttribute('aria-hidden', 'true');
+  // 2px reales (no display:none ni fuera de pantalla extrema: algunos
+  // navegadores móviles pausan los iframes ocultos del todo).
+  h.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1';
+  document.body.appendChild(h);
+  stage.host = h;
+  return h;
+}
 
 export function ensureContainer() {
-  if (!stage.container && typeof document !== 'undefined') {
+  const host = ensureHost();
+  if (!host) return null;
+  if (!stage.container || !stage.container.isConnected) {
     const d = document.createElement('div');
     d.style.width = '2px';
     d.style.height = '2px';
+    host.appendChild(d);
     stage.container = d;
-    ensureHidden();
   }
   return stage.container;
 }
 
-/** Deja el player en el slot oculto (modo solo-audio permanente). */
+/** Compat: el player ya vive en su host fijo; solo se asegura que esté montado. */
 export function ensureHidden() {
+  const host = ensureHost();
   const c = stage.container;
-  const slot = stage.hiddenSlot;
-  if (c && slot && c.parentNode !== slot) slot.appendChild(c);
+  if (host && c && !c.isConnected) host.appendChild(c);
 }
 
-/** Compat: antes movía el player al banner; ahora siempre oculto. */
-export function place() {
-  ensureHidden();
-}
-
-/** Compat: ya no se redimensiona (el player es fijo de 2px). */
+/** Compat. */
+export function place() { ensureHidden(); }
 export function sizeToSlot() {}

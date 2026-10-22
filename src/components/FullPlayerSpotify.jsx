@@ -1,396 +1,172 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Play, Pause, SkipBack, SkipForward, Heart, Volume1, Volume2,
-  Timer, ListMusic, Loader2, Shuffle, Repeat, Repeat1, Gauge,
-  ScrollText, Headphones, User, MoreHorizontal, ChevronDown, X, Copy,
-} from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Plus, Check, MoreVertical, Shuffle, Timer, Headphones, Share2, ListMusic, Loader2, ChevronRight } from 'lucide-react';
 import { fmtTime } from '../lib/format';
 import Cover from './Cover';
-import { attachAnalyser, setEQPreset, EQ_PRESETS } from '../lib/analyser';
 import useArtColors from '../hooks/useArtColors';
-import useParallax from '../hooks/useParallax';
-import { getLyrics, activeLineIndex } from '../services/lyrics';
+import { contextOf } from '../lib/playContext';
+import { FONT, useAudioOutput, usePlayerBits, lyricPreview, shareTrack, LyricsMode, PlayerSheet, CloseArrow } from './player/common';
 
-const SP_FONT = "'Inter', system-ui, -apple-system, Roboto, 'SF Pro Display', sans-serif";
-const SLEEPS = [0, 5, 10, 15, 30, 45, 60];
-const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
+const GREEN = '#1ed760';
+const Prev = ({ s = 34 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2.2v14H6zM20 5v14L9.5 12z" /></svg>;
+const Next = ({ s = 34 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.8 5H18v14h-2.2zM4 5l10.5 7L4 19z" /></svg>;
 
-// Tema Spotify: réplica de layout (tipografía Inter, iconos filled/outlined,
-// cápsula de dispositivo, degradado dinámico). Reutiliza el mismo `p`.
+/** Hermes 03 · Spotify — carátula cuadrada, fondo del color de la canción, "Reproduciendo desde",
+ *  controles clásicos, dispositivo de salida y tarjeta con vista previa de la letra. */
 export default function FullPlayerSpotify({ p, toast, onClose: onCloseProp }) {
   const t = p.track;
-  const [closing, setClosing] = useState(false);
-  const [showTab, setShowTab] = useState(null); // null | cola | letra | eq | mas
-  const lastTab = useRef('cola');
-  const openTab = (tab) => { lastTab.current = tab; setShowTab(tab); };
-  const [sleepMin, setSleepMin] = useState(0);
-  const [sleepLeft, setSleepLeft] = useState(0);
-  const [lrc, setLrc] = useState(null);
-  const [lrcOffset, setLrcOffset] = useState(0); // ajuste sync ±5s (pestaña Letra)
-  const activeRef = useRef(null);
-  const onClose = () => { if (closing) return; setClosing(true); setTimeout(() => onCloseProp?.(), 260); };
+  const bits = usePlayerBits(p, toast, onCloseProp);
   const colors = useArtColors(t?.art);
-  const { trackRef, bgRef } = useParallax({ bg: 20, fg: 10 });
-  // Gesto bajar para cerrar (toda la zona superior)
-  const touch = useRef(null);
+  const device = useAudioOutput(true);
+  const [sheet, setSheet] = useState(null);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const barRef = useRef(null);
   const scrub = useRef(false);
+  const touch = useRef(null);
   const [dragY, setDragY] = useState(0);
+  if (!t) return null;
+
   const swipe = {
     onTouchStart: (e) => { touch.current = e.touches[0].clientY; },
     onTouchMove: (e) => { if (touch.current != null) setDragY(Math.max(0, e.touches[0].clientY - touch.current)); },
-    onTouchEnd: () => { if (dragY > 110) onClose(); setDragY(0); touch.current = null; },
+    onTouchEnd: () => { if (dragY > 110) bits.onClose(); setDragY(0); touch.current = null; },
   };
-
-  // Engancha analyser/EQ en directos para que el EQ siga vivo en este tema
-  useEffect(() => {
-    if (!t || t.source === 'YouTube') return;
-    let dead = false;
-    const el = p.audio.current;
-    if (el) {
-      attachAnalyser(el).then((a) => {
-        if (dead || !a) return;
-        setEQPreset(el, p.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-      });
-    }
-    return () => { dead = true; };
-  }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Letra: solo estado/línea activa (altura fija)
-  useEffect(() => {
-    if (!t) return;
-    setLrc({ state: 'loading' });
-    const ctrl = new AbortController();
-    getLyrics({ artist: t.artist || '', title: t.title || '', duration: t.duration || p.time?.dur || 0, signal: ctrl.signal })
-      .then((j) => setLrc({ state: 'ok', lines: j.lines || [], plain: j.plain || '', provider: j.provider || '' }))
-      .catch(() => setLrc({ state: 'empty' }));
-    return () => ctrl.abort();
-  }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sleep con fundido
-  useEffect(() => {
-    if (!sleepMin) return;
-    const end = Date.now() + sleepMin * 60000;
-    setSleepLeft(sleepMin * 60);
-    const iv = setInterval(() => {
-      const s = Math.max(0, Math.round((end - Date.now()) / 1000));
-      setSleepLeft(s);
-      if (s <= 0) {
-        clearInterval(iv); setSleepMin(0); p.pause();
-        try { if (p.audio?.current) p.audio.current.volume = p.rawVolume ?? 0.9; p.ytRef?.current?.applyVolume?.(p.rawVolume ?? 0.9, p.muted); } catch {}
-        toast?.('Temporizador: música en pausa', Timer);
-      }
-    }, 1000);
-    return () => clearInterval(iv);
-  }, [sleepMin]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const closeRef = useRef(null); closeRef.current = onClose;
-  useEffect(() => {
-    const k = (e) => { if (e.key === 'Escape') closeRef.current?.(); };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, []);
-
-  const lines = lrc?.lines || [];
-  const tReal = p.time?.cur || 0;
-  const tcur = tReal + lrcOffset;
-  const activeIdx = useMemo(() => activeLineIndex(lines, tcur), [lines, tcur]);
-  const activeLine = activeIdx >= 0 ? lines[activeIdx] : null;
-  // Auto-scroll a la línea activa solo con la pestaña Letra abierta
-  useEffect(() => {
-    if (showTab === 'letra') activeRef.current?.scrollIntoView({ block: 'center' });
-  }, [activeIdx, showTab]);
-
-  // Oculta: toca el título para copiar "título — artista" al portapapeles.
-  const copyTitle = async () => {
-    const txt = `${t?.title || ''}${t?.artist ? ` — ${t.artist}` : ''}`.trim();
-    if (!txt) return;
-    try { await navigator.clipboard.writeText(txt); }
-    catch {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); ta.remove();
-      } catch { /* portapapeles bloqueado */ }
-    }
-    toast?.('Título copiado', Copy);
-  };
-
-  // Scrub en la barra de progreso (tocar y arrastrar)
-  const seekBar = (clientX) => {
-    const el = barRef.current;
-    const d = (isFinite(p.time?.dur) && p.time.dur > 0 ? p.time.dur : t?.duration) || 0;
-    if (!el || !d) return;
-    const r = el.getBoundingClientRect();
-    if (r.width) p.seek(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * d);
-  };
-
-  if (!t) return null;
   const dur = (isFinite(p.time?.dur) && p.time.dur > 0 ? p.time.dur : t.duration) || 0;
+  const tReal = bits.tReal;
   const pct = dur > 0 ? Math.min(100, (tReal / dur) * 100) : 0;
-  const deviceLabel = t.source === 'Local' ? 'Este teléfono' : (t.source || 'Música');
-  // Color de la canción: fondo sólido + degradado del mismo color (sin negro).
-  const main = colors?.main || '#0e7a6d';
+  const main = colors?.main || '#7a1d1d';
+  const ctx = contextOf(t);
+  const fav = p.isFav(t);
+  const seekBar = (x) => {
+    const el = barRef.current;
+    if (!el || !dur) return;
+    const r = el.getBoundingClientRect();
+    if (r.width) p.seek(Math.min(1, Math.max(0, (x - r.left) / r.width)) * dur);
+  };
+
+  const progress = (
+    <div>
+      <div ref={barRef} className="cursor-pointer touch-none select-none py-3.5 -my-3" tabIndex={0} role="slider" aria-label="Progreso"
+        aria-valuemin={0} aria-valuemax={Math.round(dur)} aria-valuenow={Math.round(tReal)}
+        onPointerDown={(e) => { if (!dur) return; scrub.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); seekBar(e.clientX); }}
+        onPointerMove={(e) => { if (scrub.current) seekBar(e.clientX); }}
+        onPointerUp={() => { scrub.current = false; }} onPointerCancel={() => { scrub.current = false; }}
+        onKeyDown={(e) => { if (!dur) return; if (e.key === 'ArrowRight') { e.preventDefault(); p.seek(Math.min(dur, tReal + 10)); } else if (e.key === 'ArrowLeft') { e.preventDefault(); p.seek(Math.max(0, tReal - 10)); } }}>
+        <div className="relative h-1 rounded-full pointer-events-none" style={{ background: 'rgba(255,255,255,.3)' }}>
+          <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
+          <span className="absolute top-1/2 w-3 h-3 rounded-full bg-white shadow" style={{ left: `${pct}%`, transform: 'translate(-50%,-50%)' }} />
+        </div>
+      </div>
+      <div className="flex justify-between text-[12px] tabular-nums mt-2" style={{ color: 'rgba(255,255,255,.7)' }}>
+        <span>{fmtTime(tReal)}</span><span>{p.resolving ? 'cargando…' : fmtTime(dur)}</span>
+      </div>
+    </div>
+  );
+  const playBtn = (size = 64) => (
+    <button onClick={p.toggle} aria-label={p.playing ? 'Pausar' : 'Reproducir'} aria-busy={p.resolving ? 'true' : undefined}
+      className="rounded-full grid place-items-center active:scale-95 transition" style={{ width: size, height: size, background: '#fff', color: '#000' }}>
+      {p.resolving ? <Loader2 size={size * .45} className="animate-spin" /> : p.playing
+        ? <svg width={size * .4} height={size * .4} viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4.2v16H6zM13.8 4H18v16h-4.2z" /></svg>
+        : <svg width={size * .42} height={size * .42} viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 3 }}><path d="M7 4.5v15l13-7.5z" /></svg>}
+    </button>
+  );
+  const controls = (size = 64, ps = 34) => (
+    <div className="flex items-center justify-between">
+      <button onClick={() => p.toggleShuffle?.()} aria-pressed={p.shuffle ? 'true' : 'false'} aria-label="Aleatorio" className="w-12 h-12 grid place-items-center active:scale-90 transition" style={{ color: p.shuffle ? GREEN : '#fff' }}>
+        <span className="flex flex-col items-center"><Shuffle size={25} />{p.shuffle && <i className="w-1 h-1 rounded-full mt-0.5" style={{ background: GREEN }} />}</span>
+      </button>
+      <button onClick={p.prev} aria-label="Anterior" className="w-14 h-14 grid place-items-center text-white active:scale-90 transition"><Prev s={ps} /></button>
+      {playBtn(size)}
+      <button onClick={() => p.next(false)} aria-label="Siguiente" className="w-14 h-14 grid place-items-center text-white active:scale-90 transition"><Next s={ps} /></button>
+      <button onClick={() => setSheet('mas')} aria-label="Temporizador y más" className="w-12 h-12 grid place-items-center active:scale-90 transition" style={{ color: bits.sleepMin ? GREEN : '#fff' }}>
+        {bits.sleepMin ? <span className="flex flex-col items-center"><Timer size={24} /><span className="text-[9px] font-bold tabular-nums">{fmtTime(bits.sleepLeft)}</span></span> : <Timer size={25} />}
+      </button>
+    </div>
+  );
+  const previewLines = (() => {
+    if (!bits.lines.length) return [lyricPreview(bits.lrc, bits.lines, bits.activeIdx)];
+    const i = Math.max(0, bits.activeIdx);
+    return bits.lines.slice(i, i + 4).map((l) => l.x || '♪');
+  })();
 
   return (
-    <div className={`fixed inset-0 z-40 overflow-hidden ${closing ? 'player-out' : 'player-in'}`} role="dialog" aria-modal="true" aria-label="Sonando Hermes 03"
-      style={{ fontFamily: SP_FONT, color: '#fff', background: main, ...(dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined) }}>
-      {/* Hero: foto full-bleed con parallax (overscan para no mostrar bordes) */}
-      <div className="absolute top-0 inset-x-0 overflow-hidden" style={{ height: '52dvh', minHeight: 'min(320px, 70dvh)' }}>
-        {t.art
-          ? (
-            <div ref={bgRef} className="parallax-bg absolute -inset-6">
-              <img src={t.art} alt="" aria-hidden="true" draggable={false} fetchpriority="high" decoding="async"
-                className="w-full h-full object-cover object-center" />
+    <div className={`fixed inset-0 z-40 overflow-hidden ${bits.closing ? 'player-out' : 'player-in'}`} role="dialog" aria-modal="true" aria-label="Sonando"
+      style={{ fontFamily: FONT, color: '#fff', background: `linear-gradient(180deg, color-mix(in srgb, ${main} 70%, #000) 0%, color-mix(in srgb, ${main} 22%, #0b0b0b) 62%, #0b0b0b 100%)`, ...(dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined) }}>
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto w-full max-w-md px-6 pt-[max(0.6rem,env(safe-area-inset-top))] pb-[max(1.4rem,env(safe-area-inset-bottom))] min-h-full flex flex-col">
+          {/* Cabecera: flecha ↓ · Reproduciendo desde · ⋮ */}
+          <div {...swipe} className="grid grid-cols-[48px_1fr_48px] items-center -mx-3" style={{ touchAction: 'pan-y' }}>
+            <CloseArrow onClick={bits.onClose} />
+            <div className="text-center min-w-0">
+              <p className="text-[12px] text-white/85">Reproduciendo desde {ctx.from}</p>
+              <p className="text-[14px] font-bold truncate">{ctx.title || ctx.from}</p>
             </div>
-          )
-          : <Cover src={t.art} alt={t.title} iconSize={48} className="absolute inset-0 w-full h-full" />}
-        {/* Resplandor degradado tomado del color de la canción: transparente arriba,
-            color cada vez más fuerte hacia abajo. Sin negro. */}
-        <div className="absolute inset-0" style={{
-          background: `linear-gradient(180deg, color-mix(in srgb, ${main} 0%, transparent) 22%, color-mix(in srgb, ${main} 55%, transparent) 55%, ${main} 82%, ${main} 100%)`,
-        }} />
-      </div>
-
-      <div ref={trackRef} className="relative h-full overflow-y-auto">
-        <div className="mx-auto w-full max-w-md px-5 pt-[max(0.9rem,env(safe-area-inset-top))] pb-[max(1.4rem,env(safe-area-inset-bottom))] min-h-full flex flex-col">
-          {/* Flechita + Playing from (área táctil grande + gesto bajar) */}
-          <div {...swipe} className="pt-2 pb-1 -mx-5 px-5" style={{ touchAction: 'pan-y' }}>
-            <button onClick={onClose} aria-label="Cerrar sonando" className="mx-auto flex items-center justify-center w-16 h-8">
-              <ChevronDown size={26} color="rgba(255,255,255,.9)" style={{ filter: 'drop-shadow(0 1px 8px rgba(0,0,0,.45))' }} />
-            </button>
+            <button onClick={() => setSheet('mas')} aria-label="Más opciones" className="w-11 h-11 grid place-items-center"><MoreVertical size={22} /></button>
           </div>
 
-          {/* Espaciador proporcional al hero: título en degradado fuerte, controles visibles sin scroll */}
-          <div {...swipe} className="flex-none" style={{ height: '34dvh', minHeight: 'min(220px, 48dvh)', touchAction: 'pan-y' }} aria-hidden="true" />
+          {/* Carátula cuadrada */}
+          <div {...swipe} className="flex-1 grid place-items-center py-5 min-h-[18rem]" style={{ touchAction: 'pan-y' }}>
+            <div className="w-full aspect-square max-h-[48dvh] max-w-[48dvh] rounded-md overflow-hidden transition-transform duration-500" style={{ boxShadow: '0 18px 50px -12px rgba(0,0,0,.65)', transform: p.playing ? 'scale(1)' : 'scale(.94)' }}>
+              <Cover src={t.art} alt={t.title} iconSize={56} className="w-full h-full" />
+            </div>
+          </div>
 
-          {/* Título + acciones — sombra para contraste sobre color dinámico */}
-          <div className="mt-1 flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <button onClick={copyTitle} title="Tocar para copiar el título" aria-label={`Copiar título: ${t.title} de ${t.artist}`} className="block w-full text-left active:opacity-70 transition-opacity rounded-lg min-h-[44px]">
-                <span className="block text-[22px] font-bold leading-tight line-clamp-2 break-words text-white" title={t.title} style={{ textShadow: '0 1px 12px rgba(0,0,0,.45)' }}>{t.title}</span>
-              </button>
-              <p className="text-[15px] mt-0.5 truncate" title={t.artist} style={{ color: 'rgba(255,255,255,.85)', textShadow: '0 1px 8px rgba(0,0,0,.4)' }}>{t.artist}</p>
+              <p className="text-[24px] font-bold leading-tight line-clamp-2 break-words" title={t.title}>{t.title}</p>
+              <p className="text-[16px] mt-0.5 truncate flex items-center gap-2" style={{ color: 'rgba(255,255,255,.7)' }}>
+                {t.explicit && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm shrink-0" style={{ background: 'rgba(255,255,255,.55)', color: '#000' }}>E</span>}
+                <span className="truncate">{t.artist}</span>
+              </p>
             </div>
-            <button onClick={() => p.toggleFav(t)} aria-label={p.isFav(t) ? `Quitar de me gusta: ${t.title}` : `Me gusta: ${t.title}`} aria-pressed={p.isFav(t) ? 'true' : 'false'}
-              className="w-12 h-12 rounded-full grid place-items-center shrink-0" style={{ background: 'rgba(255,255,255,.16)' }}>
-              <Heart size={21} strokeWidth={1.8} fill={p.isFav(t) ? '#fff' : 'none'} color="#fff" />
-            </button>
-            <button onClick={() => openTab(lastTab.current)} aria-label="Abrir opciones, cola y letra" aria-haspopup="dialog"
-              className="w-12 h-12 rounded-full grid place-items-center shrink-0" style={{ background: 'rgba(255,255,255,.16)' }}>
-              <MoreHorizontal size={21} strokeWidth={1.8} color="#fff" />
+            <button onClick={() => p.toggleFav(t)} aria-pressed={fav ? 'true' : 'false'} aria-label={fav ? 'Quitar de tu biblioteca' : 'Guardar en tu biblioteca'}
+              className="w-10 h-10 rounded-full grid place-items-center shrink-0 active:scale-90 transition" style={fav ? { background: GREEN, color: '#000' } : { border: '2px solid #fff' }}>
+              {fav ? <Check size={22} strokeWidth={3} /> : <Plus size={22} strokeWidth={2.4} />}
             </button>
           </div>
 
-          {/* Estado de letra (altura fija) + skeleton pequeño sin bugs */}
-          <div className="mt-3 min-h-[3.25rem] flex flex-col justify-center">
-            {(!lrc || lrc.state === 'loading') && (
-              <span className="flex flex-col gap-1.5" aria-label="Buscando letra">
-                <i className="block h-3.5 rounded-full bg-white/20 animate-pulse" style={{ width: '70%' }} />
-                <i className="block h-2.5 rounded-full bg-white/15 animate-pulse" style={{ width: '45%', animationDelay: '.15s' }} />
-              </span>
-            )}
-            {lrc?.state === 'empty' && <p className="text-[16px] font-semibold text-white/70">Sin letra disponible</p>}
-            {lrc?.state === 'ok' && lines.length > 0 && activeLine
-              ? <p className="text-[16px] font-semibold text-white line-clamp-2 leading-snug">{activeLine.x}</p>
-              : null}
-            {lrc?.state === 'ok' && lines.length > 0 && !activeLine && <p className="text-[16px] font-semibold text-white/60 line-clamp-2 leading-snug">{lines[0]?.x}</p>}
-            {lrc?.state === 'ok' && !lines.length && <p className="text-[16px] font-semibold text-white/90 line-clamp-2">{lrc.plain || 'Sin letra disponible'}</p>}
+          <div className="mt-5">{progress}</div>
+          <div className="mt-4">{controls()}</div>
+
+          {/* Dispositivo · compartir · cola */}
+          <div className="mt-4 flex items-center justify-between">
+            <span className="inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide min-w-0" style={{ color: GREEN }}>
+              <Headphones size={20} className="shrink-0" /><span className="truncate">{device}</span>
+            </span>
+            <span className="flex items-center">
+              <button onClick={() => shareTrack(t, toast)} className="w-11 h-11 grid place-items-center" aria-label="Compartir"><Share2 size={22} /></button>
+              <button onClick={() => setSheet('cola')} className="w-11 h-11 grid place-items-center" aria-label={`Cola, ${p.queue.length} temas`}><ListMusic size={23} /></button>
+            </span>
           </div>
 
-          {/* Progreso (tocar y arrastrar, 44px táctil + teclado) */}
-          <div className="mt-1">
-            <div ref={barRef} className="cursor-pointer touch-none select-none py-3.5 -my-3"
-              onPointerDown={(e) => { if (!dur) return; scrub.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); seekBar(e.clientX); }}
-              onPointerMove={(e) => { if (scrub.current) seekBar(e.clientX); }}
-              onPointerUp={() => { scrub.current = false; }}
-              onPointerCancel={() => { scrub.current = false; }}
-              onKeyDown={(e) => {
-                if (!dur) return;
-                if (e.key === 'ArrowRight') { e.preventDefault(); p.seek(Math.min(dur, tReal + 10)); }
-                else if (e.key === 'ArrowLeft') { e.preventDefault(); p.seek(Math.max(0, tReal - 10)); }
-                else if (e.key === 'Home') { e.preventDefault(); p.seek(0); }
-                else if (e.key === 'End') { e.preventDefault(); p.seek(dur); }
-              }}
-              tabIndex={0}
-              role="slider" aria-label={`Progreso de ${t.title}`} aria-valuemin={0} aria-valuemax={Math.round(dur)} aria-valuenow={Math.round(tReal)}>
-              <div className="h-[5px] rounded-full pointer-events-none" style={{ background: 'rgba(255,255,255,.3)' }}>
-                <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-            <div className="flex justify-between text-[11px] tabular-nums mt-1.5" style={{ color: 'rgba(255,255,255,.7)' }}>
-              <span>{fmtTime(tReal)}</span>
-              <span>{p.resolving ? 'cargando…' : `-${fmtTime(Math.max(0, dur - tReal))}`}</span>
-            </div>
-          </div>
-
-          {/* Controles en tarjeta glassmorphism: contraste sobre color dinámico */}
-          <div className="mt-4 rounded-[28px] px-4 sm:px-5 pt-3 pb-4"
-            style={{
-              background: 'rgba(255,255,255,.12)',
-              backdropFilter: 'blur(22px) saturate(1.5)',
-              WebkitBackdropFilter: 'blur(22px) saturate(1.5)',
-              border: '1px solid rgba(255,255,255,.22)',
-              boxShadow: '0 12px 32px -12px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.18)',
-            }}>
-            <div className="flex items-center justify-between px-2 sm:px-4">
-              <button onClick={p.prev} aria-label="Anterior" className="text-white min-w-[60px] min-h-[60px] grid place-items-center rounded-2xl active:scale-90 transition hover:bg-white/10"><SkipBack size={40} fill="currentColor" strokeWidth={0} /></button>
-              <button onClick={p.toggle} aria-label={p.resolving ? 'Buscando audio' : p.playing ? `Pausar ${t.title}` : `Reproducir ${t.title}`} aria-busy={p.resolving ? 'true' : undefined}
-                className="text-white min-w-[72px] min-h-[72px] grid place-items-center rounded-full active:scale-90 transition"
-                style={{ background: 'rgba(255,255,255,.20)', border: '1px solid rgba(255,255,255,.30)', boxShadow: '0 8px 24px -8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25)' }}>
-                {p.resolving ? <Loader2 size={52} className="animate-spin" /> : p.playing ? <Pause size={52} fill="currentColor" strokeWidth={0} /> : <Play size={52} fill="currentColor" strokeWidth={0} className="ml-1.5" />}
-              </button>
-              <button onClick={() => p.next(false)} aria-label="Siguiente" className="text-white min-w-[60px] min-h-[60px] grid place-items-center rounded-2xl active:scale-90 transition hover:bg-white/10"><SkipForward size={40} fill="currentColor" strokeWidth={0} /></button>
-            </div>
-
-            {/* Secundarios: 44px + estado textual */}
-            <div className="mt-2 flex items-center justify-center gap-1 sm:gap-3" style={{ color: 'rgba(255,255,255,.75)' }}>
-              <button onClick={() => p.toggleShuffle?.()} aria-label={p.shuffle ? 'Desactivar aleatorio' : 'Activar aleatorio'} aria-pressed={p.shuffle ? 'true' : 'false'} title="Aleatorio"
-                className="min-w-[48px] min-h-[48px] grid place-items-center rounded-xl active:scale-90 transition hover:bg-white/10"
-                style={p.shuffle ? { color: '#fff', background: 'rgba(255,255,255,.18)' } : undefined}>
-                <span className="flex flex-col items-center gap-0.5"><Shuffle size={19} strokeWidth={2} /><span className="text-[9px] font-bold leading-none">{p.shuffle ? 'ON' : ''}</span></span>
-              </button>
-              <button onClick={() => { const i = RATES.indexOf(p.rate || 1); p.setRate?.(RATES[(i + 1) % RATES.length]); }} aria-label={`Velocidad ${p.rate || 1}x, tocar para cambiar`} title="Velocidad"
-                className="min-w-[48px] min-h-[48px] grid place-items-center rounded-xl active:scale-90 transition hover:bg-white/10"
-                style={(p.rate || 1) !== 1 ? { color: '#fff', background: 'rgba(255,255,255,.18)' } : undefined}>
-                <span className="flex items-center gap-1"><Gauge size={19} strokeWidth={2} />
-                <span className="text-[11px] font-bold tabular-nums">{p.rate || 1}x</span></span>
-              </button>
-              <button onClick={() => openTab('mas')} aria-label={sleepMin ? `Temporizador ${sleepMin} minutos, quedan ${fmtTime(sleepLeft)}` : 'Abrir temporizador'} title="Sleep"
-                className="min-w-[48px] min-h-[48px] grid place-items-center rounded-xl active:scale-90 transition hover:bg-white/10"
-                style={sleepMin ? { color: '#fff', background: 'rgba(255,255,255,.18)' } : undefined}>
-                <span className="flex items-center gap-1"><Timer size={19} strokeWidth={2} />
-                {sleepMin > 0 && <span className="text-[11px] font-bold tabular-nums">{fmtTime(sleepLeft)}</span>}</span>
-              </button>
-              <button onClick={() => p.cycleRepeat?.()} aria-label="Repetir" aria-pressed={p.repeat && p.repeat !== 'off' ? 'true' : 'false'} title="Repetir"
-                className="min-w-[48px] min-h-[48px] grid place-items-center rounded-xl active:scale-90 transition hover:bg-white/10"
-                style={p.repeat && p.repeat !== 'off' ? { color: '#fff', background: 'rgba(255,255,255,.18)' } : undefined}>
-                <span className="flex flex-col items-center gap-0.5">{p.repeat === 'one' ? <Repeat1 size={19} strokeWidth={2} /> : <Repeat size={19} strokeWidth={2} />}<span className="text-[9px] font-bold leading-none">{p.repeat === 'one' ? '1' : p.repeat === 'all' ? 'ALL' : ''}</span></span>
-              </button>
-            </div>
-
-            {/* Volumen dentro del glass: se ve sobre cualquier carátula */}
-            <div className="mt-2 mx-auto w-full max-w-[220px] flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{ background: 'rgba(255,255,255,.10)', border: '1px solid rgba(255,255,255,.16)' }}>
-              <Volume1 size={13} color="rgba(255,255,255,.75)" />
-              <input type="range" min="0" max="1" step="0.05" value={p.muted ? 0 : p.volume}
-                onChange={(e) => p.setVolume(+e.target.value)} className="flex-1 h-[3px] cursor-pointer" style={{ accentColor: '#fff' }} aria-label="Volumen" />
-              <Volume2 size={15} color="rgba(255,255,255,.75)" />
-            </div>
-          </div>
-
-          {/* Toolbar inferior glass */}
-          <div className="mt-3 grid grid-cols-3 items-center rounded-[24px] px-2 py-1.5"
-            style={{
-              background: 'rgba(255,255,255,.10)',
-              backdropFilter: 'blur(18px) saturate(1.4)',
-              WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
-              border: '1px solid rgba(255,255,255,.18)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
-            }}>
-            <button className="justify-self-start min-w-[52px] min-h-[52px] grid place-items-center rounded-2xl hover:bg-white/10 active:scale-90 transition" onClick={() => openTab('letra')} aria-label="Ver letra completa">
-              <ScrollText size={25} strokeWidth={1.7} color="rgba(255,255,255,.92)" />
-            </button>
-            <div className="justify-self-center flex items-center rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.20)' }}>
-              <button className="px-5 py-3 min-h-[48px]" onClick={() => p.swapToBg?.(true)} aria-label="Cambiar a segundo plano gratis" title="Segundo plano gratis">
-                <Headphones size={21} strokeWidth={1.7} color="#fff" />
-              </button>
-              <span className="w-px h-5 bg-white/25" />
-              <button className="px-5 py-3 min-h-[48px]" aria-label="Perfil">
-                <User size={21} strokeWidth={1.7} color="#fff" />
-              </button>
-            </div>
-            <button className="justify-self-end min-w-[52px] min-h-[52px] grid place-items-center rounded-2xl hover:bg-white/10 active:scale-90 transition" onClick={() => openTab('cola')} aria-label={`Ver cola, ${p.queue.length} temas`}>
-              <ListMusic size={25} strokeWidth={1.7} color="rgba(255,255,255,.92)" />
-            </button>
-          </div>
-          <p className="mt-2 text-center text-[11px] tracking-wide" style={{ color: 'rgba(255,255,255,.65)' }}>{deviceLabel}</p>
+          {/* Vista previa de la letra */}
+          <button onClick={() => setLyricsOpen(true)} className="mt-5 w-full text-left rounded-2xl p-4 active:scale-[.99] transition" aria-label="Abrir la letra"
+            style={{ background: `color-mix(in srgb, ${main} 62%, #000)` }}>
+            <span className="flex items-center justify-between mb-2">
+              <span className="text-[15px] font-bold">Vista previa de la letra</span>
+              <span className="inline-flex items-center gap-1 text-[12px] font-semibold px-3 py-1.5 rounded-full bg-white/20">Mostrar <ChevronRight size={14} /></span>
+            </span>
+            {previewLines.map((l, i) => (
+              <span key={i} className="block font-bold leading-tight" style={{ fontSize: i === 0 ? 22 : 20, color: i === 0 ? '#fff' : 'rgba(255,255,255,.55)', marginTop: i ? 4 : 0 }}>{l}</span>
+            ))}
+          </button>
         </div>
       </div>
 
-      {/* Hoja con pestañas: Cola | Letra | EQ | Más */}
-      {showTab && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,.72)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', fontFamily: SP_FONT }} role="dialog" aria-label="Opciones">
-          <div className="flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-2 max-w-md w-full mx-auto">
-            <p className="text-base font-bold text-white truncate">{t.title}</p>
-            <button className="p-2" onClick={() => setShowTab(null)} aria-label="Cerrar"><X size={22} color="#fff" /></button>
-          </div>
-          <div className="px-5 pb-2 flex gap-2 justify-center max-w-md w-full mx-auto">
-            {[['cola', 'Cola'], ['letra', 'Letra'], ['eq', 'EQ'], ['mas', 'Más']].map(([id, label]) => (
-              <button key={id} onClick={() => openTab(id)}
-                className="flex-1 px-3 py-1.5 rounded-full text-xs font-semibold"
-                style={showTab === id ? { background: '#fff', color: '#000' } : { background: 'rgba(255,255,255,.15)', color: '#fff' }}>{label}</button>
-            ))}
-          </div>
-          {showTab === 'mas' && (
-            <div className="px-3 pb-2 flex gap-2 justify-center max-w-md w-full mx-auto flex-wrap">
-              <button onClick={() => p.toggleShuffle?.()} className="px-3 py-1.5 rounded-full text-xs font-semibold text-white" style={{ background: p.shuffle ? '#fff' : 'rgba(255,255,255,.15)', color: p.shuffle ? '#000' : '#fff' }}>
-                Aleatorio{p.shuffle ? ' · on' : ''}
-              </button>
-              <button onClick={() => p.cycleRepeat?.()} className="px-3 py-1.5 rounded-full text-xs font-semibold text-white" style={{ background: p.repeat !== 'off' ? '#fff' : 'rgba(255,255,255,.15)', color: p.repeat !== 'off' ? '#000' : '#fff' }}>
-                {p.repeat === 'one' ? 'Repite una' : p.repeat === 'all' ? 'Repite cola' : 'Repetir'}
-              </button>
-              <button onClick={() => { const i = RATES.indexOf(p.rate || 1); const n = RATES[(i + 1) % RATES.length]; p.setRate?.(n); }} className="px-3 py-1.5 rounded-full text-xs font-semibold text-white" style={{ background: 'rgba(255,255,255,.15)' }}>
-                <span className="inline-flex items-center gap-1"><Gauge size={13} />{p.rate || 1}x</span>
-              </button>
-              <select value={sleepMin} onChange={(e) => setSleepMin(+e.target.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold text-white outline-none" style={{ background: 'rgba(255,255,255,.15)' }} aria-label="Sleep">
-                {SLEEPS.map((m) => <option key={m} value={m} className="text-black">{m === 0 ? 'Sleep' : `${m}m${sleepMin === m && m > 0 ? ` (${fmtTime(sleepLeft)})` : ''}`}</option>)}
-              </select>
-            </div>
-          )}
-          {showTab === 'eq' && (
-            <div className="px-5 pb-1 max-w-md w-full mx-auto">
-              <p className="text-[11px] mb-1.5" style={{ color: 'rgba(255,255,255,.6)' }}>EQ {t?.source === 'YouTube' ? '(no aplica a YouTube)' : ''}</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {Object.keys(EQ_PRESETS).map((name) => (
-                  <button key={name} onClick={() => { p.applyEQ?.(name, EQ_PRESETS[name]); const el = p.audio?.current; if (el) setEQPreset(el, EQ_PRESETS[name]); }}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: p.eqPreset === name ? '#fff' : 'rgba(255,255,255,.15)', color: p.eqPreset === name ? '#000' : '#fff' }}>{name}</button>
-                ))}
+      {lyricsOpen && (
+        <LyricsMode t={t} colors={colors} lrc={bits.lrc} lines={bits.lines} activeIdx={bits.activeIdx} onSeek={p.seek} onShare={() => shareTrack(t, toast)}
+          controls={(
+            <div className="space-y-3">
+              {progress}
+              <div className="flex items-center justify-center gap-8">
+                <button onClick={p.prev} aria-label="Anterior" className="w-12 h-12 grid place-items-center text-white"><Prev s={30} /></button>
+                {playBtn(58)}
+                <button onClick={() => p.next(false)} aria-label="Siguiente" className="w-12 h-12 grid place-items-center text-white"><Next s={30} /></button>
               </div>
+              <button onClick={() => setLyricsOpen(false)} aria-pressed="true" className="mx-auto flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-bold" style={{ background: '#fff', color: '#000' }}>Cerrar letra</button>
             </div>
-          )}
-          {showTab === 'letra' && (
-            <div className="flex-1 overflow-y-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-md w-full mx-auto text-center">
-              <div className="flex items-center justify-center gap-2 my-2 text-[11px]" style={{ color: 'rgba(255,255,255,.6)' }}>
-                <span>{lrc?.state === 'ok' ? `Vía ${lrc.provider || ''}` : 'Letra'}</span>
-                <button className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,.15)', color: '#fff' }} onClick={() => setLrcOffset((o) => Math.max(-5, +(o - 0.5).toFixed(1)))} aria-label="Adelantar letra">-0.5s</button>
-                <span className="tabular-nums">{lrcOffset > 0 ? `+${lrcOffset}s` : `${lrcOffset}s`}</span>
-                <button className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,.15)', color: '#fff' }} onClick={() => setLrcOffset((o) => Math.min(5, +(o + 0.5).toFixed(1)))} aria-label="Retrasar letra">+0.5s</button>
-              </div>
-              {(!lrc || lrc.state === 'loading') && <p className="text-sm text-white/80">Buscando letra…</p>}
-              {lrc?.state === 'empty' && <p className="text-sm" style={{ color: 'rgba(255,255,255,.6)' }}>Sin letra disponible</p>}
-              {lrc?.state === 'ok' && lines.length > 0 && lines.map((l, i) => {
-                const isActive = i === activeIdx;
-                return (
-                  <p key={i} ref={isActive ? activeRef : undefined} onClick={() => p.seek(Math.max(0, (l.t ?? 0) - 0.2))}
-                    className={`py-1.5 leading-snug cursor-pointer ${isActive ? 'text-lg font-bold text-white' : 'text-[15px]'}`}
-                    style={isActive ? undefined : { color: 'rgba(255,255,255,.5)' }}>{l.x}</p>
-                );
-              })}
-              {lrc?.state === 'ok' && !lines.length && <p className="text-sm whitespace-pre-line text-left text-white/90">{lrc.plain || 'Sin letra disponible'}</p>}
-            </div>
-          )}
-          {showTab === 'cola' && (
-            <div className="flex-1 overflow-y-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-md w-full mx-auto">
-              <p className="text-[12px] my-2" style={{ color: 'rgba(255,255,255,.65)' }}>Cola ({p.queue.length})</p>
-              {!p.queue.length && <p className="text-sm text-center py-6 text-white/70">Cola vacía — la radio automática seguirá sonando.</p>}
-              {p.queue.map((qq, i) => (
-                <div key={`${qq.id}-${i}`} className="flex items-center gap-2.5 py-1">
-                  <Cover src={qq.art} className="w-11 h-11 !rounded-xl shrink-0" iconSize={14} alt={qq.title} />
-                  <button onClick={() => { p.playAt(i); }} className="flex-1 min-w-0 text-left rounded-lg py-2 px-1" aria-label={`Reproducir ${qq.title}`}>
-                    <p className="text-[14px] font-semibold truncate text-white">{qq.title}</p>
-                    <p className="text-[12px] truncate" style={{ color: 'rgba(255,255,255,.65)' }}>{qq.artist}</p>
-                  </button>
-                  {qq.id === t.id
-                    ? <span className="min-w-[44px] min-h-[44px] grid place-items-center" aria-label="Sonando ahora"><Repeat1 size={16} color="#fff" /></span>
-                    : <button onClick={() => p.removeAt(i)} aria-label={`Quitar ${qq.title}`} className="min-w-[44px] min-h-[44px] grid place-items-center"><X size={17} color="rgba(255,255,255,.65)" /></button>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          )} />
       )}
+      {sheet && <PlayerSheet p={p} toast={toast} bits={bits} initial={sheet} onClose={() => setSheet(null)} />}
     </div>
   );
 }

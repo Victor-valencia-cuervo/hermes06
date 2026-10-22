@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { PATHS } from '../data/routes';
 import { X, PawPrint, Music, Radio, MoreHorizontal } from 'lucide-react';
 import { NAV, BOTTOM_NAV } from '../data/constants';
 import { APP_NAME } from '../lib/format';
@@ -16,10 +18,10 @@ function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini }) {
       </div>
       <nav className="flex-1 space-y-1" aria-label="Principal">
         {items.map(({ id, label, I }) => (
-          <button key={id} onClick={() => { setView(id); close?.(); }} aria-current={view === id ? 'page' : undefined}
+          <Link key={id} to={PATHS[id]} onClick={() => close?.()} aria-current={view === id ? 'page' : undefined}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm text-left transition ${view === id ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
             <I size={18} strokeWidth={1.6} />{label}
-          </button>
+          </Link>
         ))}
       </nav>
       <div className="flex items-center justify-between">
@@ -56,7 +58,6 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
   const tabs = BOTTOM_NAV.map((id) => NAV.find((n) => n.id === id)).filter(Boolean);
   const [more, setMore] = useState(false);
   const moreActive = rest.includes(view);
-  const go = (id) => { setView(id); setMore(false); };
   return (
     <>
       <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 border-r" style={{ background: 'var(--s)', borderColor: 'var(--bd)' }}>
@@ -73,11 +74,11 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
           {tabs.map(({ id, label, I }) => {
             const active = view === id;
             return (
-              <button key={id} onClick={() => go(id)} aria-current={active ? 'page' : undefined}
+              <Link key={id} to={PATHS[id]} onClick={() => setMore(false)} aria-current={active ? 'page' : undefined}
                 className="flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium"
                 style={{ color: active ? 'var(--a)' : 'var(--m)' }}>
                 <I size={22} strokeWidth={active ? 2.2 : 1.6} />{label}
-              </button>
+              </Link>
             );
           })}
           <button onClick={() => setMore(true)} aria-expanded={more} aria-label="Más opciones"
@@ -103,11 +104,11 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
                 const { label, I } = item;
                 const active = view === id;
                 return (
-                  <button key={id} onClick={() => go(id)} aria-current={active ? 'page' : undefined}
+                  <Link key={id} to={PATHS[id]} onClick={() => setMore(false)} aria-current={active ? 'page' : undefined}
                     className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl text-[10px] font-medium transition min-h-[64px] ${active ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}
                     style={active ? undefined : { color: 'var(--m)' }}>
                     <I size={22} strokeWidth={active ? 2.2 : 1.6} />{label}
-                  </button>
+                  </Link>
                 );
               })}
             </div>

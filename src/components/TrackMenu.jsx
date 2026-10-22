@@ -77,6 +77,15 @@ export default function TrackMenu({ entry, p, toast, local, onAdd, onClose, onRa
               <ImageIcon size={15} /> Buscar carátula
             </button>
           )}
+          {p.track?.id === t.id && p.toggleArt && (t.ytArt || t.origArt || /i\.ytimg\.com/.test(String(t.art || ''))) && (
+            <button className="btn btn-o w-full" onClick={async () => {
+              const r = await p.toggleArt();
+              toast?.(r === 'yt' ? 'Carátula de YouTube' : r === 'original' ? 'Carátula original' : 'No hay otra carátula disponible');
+              onClose?.();
+            }}>
+              <ImageIcon size={15} /> {t.artOriginal ? 'Revertir a carátula de YouTube' : 'Usar carátula original'}
+            </button>
+          )}
           {(canDelete || onDelete) && (
             <button className="btn btn-o w-full" style={confirmDel ? { borderColor: '#ef4444', color: '#ef4444' } : undefined}
               onClick={() => {

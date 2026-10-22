@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, AlertTriangle, BadgeCheck, Check, Loader2, Play, Plus, Pencil,
   Trash2, X, ListMusic, History, Sparkles, Disc3, Shuffle, LayoutGrid,
@@ -18,79 +19,25 @@ import useStore from '../hooks/useStore';
 import { searchYouTube, rankCandidates, filterPublic, resolveOfficial, getSuggestions, prewarmYouTube } from '../services/youtube';
 import { searchTracks as searchAudius, trendingTracks as trendingAudius } from '../services/audius';
 import { topSongs, newMusic, CHART_COUNTRIES } from '../services/charts';
-import { getArtistProfile, getAlbumTracks, getCategoryPack } from '../services/artist';
+import { getCategoryPack } from '../services/artist';
+import { searchCatalog, chartTracks, chartAlbums, albumsOfArtists, newReleases, artistPath, albumPath } from '../services/catalog';
+import { Section as UISection, SectionTitle, Shelf, SquareCard, BackBar, SongRow } from './music/ui';
+import { PlaylistCard } from './music/RoomCards';
+import MusicHome from './music/MusicHome';
+import SearchResults from './music/SearchResults';
+import SearchPage from './music/SearchOverlay';
+import { markPending, setPageContext } from '../lib/playContext';
+import ArtistPage from './music/ArtistPage';
+import AlbumPage from './music/AlbumPage';
+import { CATEGORIES, RANDOM_POOL } from './music/data';
+import { slug, isNow } from './music/helpers';
 import { notifyJob } from '../lib/notify';
 import { DL_TOOLS, videoUrlOf } from '../lib/dltools';
 import { loadRoomPlaylists, loadRooms, loadProfileCloud } from '../services/social';
-import SpotifyPanel from '../components/SpotifyPanel';
 import { enrichOnlineCovers } from '../services/covers';
 
 const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n || 0));
 
-const CATEGORIES = [
-  ['Pop', 'top pop hits 2026', 'linear-gradient(135deg,#7c3aed,#4c1d95)', 'pop hits'],
-  ['Electrónica', 'electronic dance music hits', 'linear-gradient(135deg,#2563eb,#1e3a8a)', 'electronic dance music'],
-  ['Hip-Hop', 'hip hop hits 2026', 'linear-gradient(135deg,#ea580c,#7c2d12)', 'hip hop hits'],
-  ['Clásica', 'classical music best', 'linear-gradient(135deg,#4b5563,#111827)', 'classical music'],
-  ['Rock', 'rock hits clasicos y nuevos', 'linear-gradient(135deg,#dc2626,#450a0a)', 'rock hits'],
-  ['Salsa', 'salsa clasica y nueva', 'linear-gradient(135deg,#f59e0b,#78350f)', 'salsa'],
-  ['Reguetón', 'reggaeton hits 2026', 'linear-gradient(135deg,#db2777,#500f28)', 'reggaeton'],
-  ['Urbano', 'musica urbana latina hits', 'linear-gradient(135deg,#059669,#022c22)', 'musica urbana latina'],
-  ['Vallenato', 'vallenato clasicos y nuevos', 'linear-gradient(135deg,#eab308,#422006)', 'vallenato'],
-  ['Phonk', 'phonk drift music', 'linear-gradient(135deg,#6d28d9,#0f0f0f)', 'phonk'],
-];
-
-// [etiqueta, búsqueda por género (corta, la que sí responde), icono, degradado]
-const MOODS = [
-  ['Para entrenar', 'phonk workout', Dumbbell, 'linear-gradient(135deg,#ef4444,#7f1d1d)'],
-  ['Para relajar', 'acoustic chill', Wind, 'linear-gradient(135deg,#06b6d4,#164e63)'],
-  ['Para estudiar', 'lofi study', BookOpen, 'linear-gradient(135deg,#8b5cf6,#2e1065)'],
-  ['De fiesta', 'reggaeton fiesta', PartyPopper, 'linear-gradient(135deg,#ec4899,#831843)'],
-  ['Románticas', 'bachata romantica', Heart, 'linear-gradient(135deg,#f43f5e,#4c0519)'],
-  ['Para el carro', 'pop road trip', Car, 'linear-gradient(135deg,#f59e0b,#78350f)'],
-];
-
-/** Hero: lo que suena ahora, o una sugerencia destacada. */
-function Hero({ p, feat, playEntry, resolving }) {
-  const t = p.track || feat;
-  if (!t) return <div className="h-52 rounded-[2rem] animate-pulse" style={{ background: 'var(--s2)' }} />;
-  const live = !!p.track;
-  const go = () => {
-    if (live) p.toggle();
-    else if (feat.rank != null || feat.artist && !feat.videoId && !feat.src) playEntry(feat);
-    else (p.playRadio ? p.playRadio(feat) : p.play(feat));
-  };
-  return (
-    <section className="relative overflow-hidden rounded-[2rem] min-h-[13.5rem] sm:min-h-[16rem] flex items-end text-white"
-      style={{ background: '#111' }}>
-      {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(120deg, color-mix(in srgb, var(--a) 40%, transparent), rgba(0,0,0,.72))' }} />
-      <div className="relative w-full p-5 sm:p-7 flex items-center gap-5">
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-bold tracking-[0.25em] uppercase opacity-80 flex items-center gap-2">
-            {live && p.playing && <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-            {live ? (p.playing ? 'Sonando ahora' : 'En pausa') : 'Para empezar'}
-          </p>
-          <h3 className="serif text-3xl sm:text-5xl font-semibold leading-[1.05] mt-2 line-clamp-2" title={t.title}>{t.title}</h3>
-          <p className="mt-1 text-base sm:text-lg opacity-85 line-clamp-2" title={t.artist}>{t.artist}</p>
-          <div className="mt-4 flex gap-2">
-            <button onClick={go} disabled={resolving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform">
-              {resolving ? <Loader2 size={16} className="animate-spin" /> : live && p.playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-              {live ? (p.playing ? 'Pausar' : 'Continuar') : 'Reproducir'}
-            </button>
-            {live && (
-              <button onClick={() => p.startRadio?.(p.track)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border border-white/35 backdrop-blur active:scale-95 transition-transform">
-                <Radio size={15} /> Radio similar
-              </button>
-            )}
-          </div>
-        </div>
-        <Cover src={t.art} className={`hidden sm:block w-40 h-40 rounded-3xl shadow-2xl shrink-0 ${live && p.playing ? 'breathe' : ''}`} iconSize={40} />
-      </div>
-    </section>
-  );
-}
 
 function Meta({ t }) {
   const parts = [
@@ -105,99 +52,6 @@ function Meta({ t }) {
       {t.official && <BadgeCheck size={11} className="inline mr-1 -mt-0.5" style={{ color: 'var(--a)' }} />}
       {parts.join(' · ')}
     </p>
-  );
-}
-
-function Section({ icon: I, title, action, children }) {
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xl font-semibold flex items-center gap-2">
-          {I && <I size={18} style={{ color: 'var(--a)' }} />}{title}
-        </h3>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** Pantalla dedicada de búsqueda: entra con animación, despeja la pantalla,
- * muestra el historial acomodado y predicciones en vivo al escribir. */
-function SearchOverlay({ q, onType, sugs, loading, onPick, onSubmit, onClose,
-  hist, onPickHist, onDelHist, onClearHist, inputRef }) {
-  const typing = q.trim().length >= 2;
-  return (
-    <div className="fixed inset-0 z-50 modal-in flex flex-col" style={{ background: 'var(--bg)' }} role="dialog" aria-modal="true" aria-label="Buscar música">
-      <div className="max-w-3xl w-full mx-auto flex flex-col min-h-0 flex-1 px-4 sm:px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <form onSubmit={onSubmit} className="flex items-center gap-2 shrink-0">
-          <button type="button" className="ico-btn shrink-0" onClick={onClose} aria-label="Cerrar búsqueda"><ChevronLeft size={22} /></button>
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--m)' }} />
-            <input ref={inputRef} className="inp !pl-10 !pr-4 !py-4 !text-lg !rounded-2xl" placeholder="Artista o canción…"
-              value={q} onChange={(e) => onType(e.target.value)} aria-label="Buscar música" autoComplete="off" />
-          </div>
-          <button className="btn shrink-0" aria-label="Buscar">
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}Buscar
-          </button>
-        </form>
-
-        <div className="flex-1 min-h-0 overflow-y-auto mt-3 pb-4">
-          {!typing && (
-            <>
-              <div className="flex items-center justify-between px-1 mb-1.5">
-                <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: 'var(--m)' }}>Historial de búsqueda</p>
-                {!!hist.length && (
-                  <button className="text-[11px] underline" style={{ color: 'var(--m)' }} onClick={onClearHist}>Limpiar todo</button>
-                )}
-              </div>
-              {!hist.length && (
-                <div className="card text-center">
-                  <History size={24} className="mx-auto mb-2" style={{ color: 'var(--a)' }} />
-                  <p className="text-sm font-semibold">Sin búsquedas todavía</p>
-                  <p className="text-xs" style={{ color: 'var(--m)' }}>Escribe arriba y aparecen predicciones al instante.</p>
-                </div>
-              )}
-              {!!hist.length && (
-                <div className="card !p-2">
-                  {hist.map((s) => (
-                    <div key={s} className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[var(--s2)]">
-                      <History size={15} className="shrink-0" style={{ color: 'var(--m)' }} />
-                      <button onClick={() => onPickHist(s)} className="flex-1 min-w-0 text-left text-sm truncate" title={s}>{s}</button>
-                      <button className="ico-btn shrink-0" aria-label={`Borrar ${s}`} onClick={() => onDelHist(s)}><X size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {typing && (
-            <>
-              <p className="text-[11px] font-bold tracking-[0.2em] uppercase px-1 mb-1.5" style={{ color: 'var(--m)' }}>Predicciones</p>
-              {!sugs.length && (
-                <p className="text-xs px-1 py-3" style={{ color: 'var(--m)' }}>Escribe al menos 2 letras…</p>
-              )}
-              {!!sugs.length && (
-                <div className="card !p-2">
-                  {sugs.map((s, i) => (
-                    <button key={`${s.label}-${i}`} type="button" onClick={() => onPick(s.label)}
-                      className="w-full flex items-center gap-2.5 px-3 py-3 text-sm text-left rounded-xl hover:bg-[var(--s2)] active:scale-[.99] transition">
-                      {s.from === 'web' ? <Search size={15} className="shrink-0" style={{ color: 'var(--a)' }} /> : <History size={15} className="shrink-0" style={{ color: 'var(--m)' }} />}
-                      <span className="truncate flex-1" title={s.label}>{s.label}</span>
-                      <ChevronLeft size={14} className="rotate-180 shrink-0" style={{ color: 'var(--m)' }} />
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button className="btn w-full mt-3" onClick={onSubmit}>
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Buscar “{q.trim().slice(0, 30)}”
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -225,134 +79,33 @@ function FuenteTabs({ fuente, setFuente, art }) {
   );
 }
 
-/** Tarjeta horizontal (historial, recomendaciones, lanzamientos, aleatorias). Altura fija para alinear el grid. */
-function HCard({ art, title, sub, onClick, spinning, badge, onDownload, downloading }) {
-  return (
-    <button onClick={onClick} aria-label={`Reproducir ${title} de ${sub}`} className="min-w-[8.5rem] w-[8.5rem] sm:min-w-[11rem] sm:w-[11rem] text-left shrink-0 group rounded-2xl focus-visible:outline-2 focus-visible:outline-[var(--a)] focus-visible:outline-offset-2">
-      <div className="relative w-[8.5rem] h-[8.5rem] sm:w-[11rem] sm:h-[11rem] rounded-3xl overflow-hidden shadow-lg transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]">
-        <Cover src={art} className="w-full h-full" iconSize={28} alt={title} />
-        <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" aria-hidden="true">
-          {spinning ? <Loader2 size={26} className="animate-spin text-white" /> : <Play size={26} className="text-white" fill="currentColor" />}
-        </span>
-        {badge && <span className="absolute top-1.5 left-1.5 text-[10px] font-bold px-2 py-1 rounded-full text-white max-w-[calc(100%-12px)] truncate" style={{ background: 'var(--a)' }}>{badge}</span>}
-        {onDownload && (
-          <span role="button" tabIndex={0} aria-label={`Guardar sin wifi: ${title}`}
-            onClick={(e) => { e.stopPropagation(); onDownload(); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onDownload(); } }}
-            className="absolute bottom-1.5 right-1.5 w-10 h-10 rounded-full grid place-items-center bg-black/65 text-white active:scale-90 transition focus-visible:outline-2 focus-visible:outline-white"
-            title="Guardar sin wifi en Local">
-            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          </span>
-        )}
-      </div>
-      <p className="text-[15px] font-semibold mt-2 line-clamp-2 break-words min-h-[2.7em] leading-snug" title={title}>{title}</p>
-      <p className="text-[13px] line-clamp-1 min-h-[1.4em]" style={{ color: 'var(--m)' }} title={sub}>{sub}</p>
-    </button>
-  );
-}
-
-// Pool para "Canciones aleatorias": queries variadas que sí devuelven música real.
-const RANDOM_POOL = [
-  'top pop hits 2026',
-  'reggaeton hits 2026',
-  'rock clasicos en español',
-  'salsa clasica hits',
-  'musica electronica hits',
-  'baladas romanticas en español',
-  'hip hop hits 2026',
-  'vallenato clasicos',
-  'musica urbana latina hits',
-  'phonk drift music',
-];
-
-/** Tarjeta playlist: collage 2x2 con las 4 primeras carátulas agregadas. */
-function PlaylistCard({ pl, plays, onClick }) {
-  const arts = (pl.tracks || []).slice(0, 4).map((t) => t.art);
-  while (arts.length < 4) arts.push(null);
-  return (
-    <button onClick={onClick} className="min-w-[9rem] w-[9rem] sm:min-w-[11rem] sm:w-[11rem] text-left shrink-0 group">
-      <div className="relative w-[9rem] h-[9rem] sm:w-[11rem] sm:h-[11rem] rounded-3xl overflow-hidden shadow-lg grid grid-cols-2 grid-rows-2 transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]" style={{ background: 'var(--s2)' }}>
-        {arts.map((a, i) => (a
-          ? <Cover key={i} src={a} className="w-full h-full min-w-0" iconSize={20} />
-          : <div key={i} className="w-full h-full grid place-items-center" style={{ background: 'color-mix(in srgb, var(--a) 22%, var(--s2))' }}><ListMusic size={20} style={{ color: 'var(--a)' }} /></div>
-        ))}
-        <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Play size={26} className="text-white" />
-        </span>
-      </div>
-      <p className="text-[15px] font-semibold truncate mt-2">{pl.name}</p>
-      <p className="text-[13px] truncate" style={{ color: 'var(--m)' }}>
-        {(pl.tracks || []).length} temas{(plays || 0) > 0 ? ` · ${plays} escuchas` : ''}
-      </p>
-    </button>
-  );
-}
-
-/** Tarjeta de playlist de sala: tocarla abre la lista de una;
- * los otros dos botones (escuchar / chatear) van encogidos. */
-function RoomPlCard({ pl, peer, myAvatar, onOpen, onPlay, onChat }) {
-  const isDuo = pl.kind === 'dm';
-  const title = isDuo ? (peer?.name || peer?.handle || pl.name) : pl.name;
-  return (
-    <div className="min-w-[13rem] w-[13rem] sm:min-w-[14rem] sm:w-[14rem] shrink-0 card !p-3 flex flex-col gap-2.5">
-      <button onClick={onOpen} className="flex items-center gap-2.5 text-left active:opacity-70" aria-label={`Abrir ${title}`}>
-        {isDuo ? (
-          <span className="flex items-center shrink-0" aria-hidden="true">
-            <AvatarImg src={myAvatar} label="Tú" size={40} />
-            <AvatarImg src={peer?.avatar} label={title} size={40} overlap />
-          </span>
-        ) : (
-          <RoomIcon room={{ icon: pl.icon, color: pl.color }} size={44} radius={16} />
-        )}
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold truncate" title={title}>{title}</span>
-          <span className="block text-[11px] truncate" style={{ color: 'var(--m)' }}>
-            {isDuo ? 'De a 2' : 'Grupo'}{` · ${(pl.tracks || []).length} temas`}
-          </span>
-        </span>
-        <ChevronLeft size={16} className="rotate-180 shrink-0" style={{ color: 'var(--m)' }} />
-      </button>
-      <div className="flex gap-2">
-        <button className="ico-btn shrink-0" onClick={onPlay} aria-label={`Escuchar ${title}`} title="Escuchar">
-          <Play size={16} />
-        </button>
-        <button className="ico-btn shrink-0" onClick={onChat} aria-label={`Chatear en ${title}`} title="Chatear" style={{ color: 'var(--a)' }}>
-          <MessageCircle size={16} />
-        </button>
-        <button className="btn btn-o flex-1 !py-1.5 !px-3 text-[11px]" onClick={onOpen}>
-          Abrir playlist
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AvatarImg({ src, label, size = 40, overlap = false }) {
-  const st = { width: size, height: size, ...(overlap ? { marginLeft: -size * 0.35, border: '2px solid var(--s)' } : {}) };
-  if (src) return <img src={src} alt={label || ''} loading="lazy" className="rounded-full object-cover" style={st} />;
-  return (
-    <span className="rounded-full grid place-items-center text-white font-bold shrink-0"
-      style={{ ...st, background: 'linear-gradient(135deg, var(--a), #4c1d95)', fontSize: size * 0.4 }}>
-      {(String(label || '?').trim()[0] || '?').toUpperCase()}
-    </span>
-  );
-}
-
 export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
-  const [q, setQ] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false); // pantalla dedicada de búsqueda
+  // ---- Rutas de Música (React Router) ----
+  //  /musica                      inicio
+  //  /musica/buscar               pantalla de búsqueda
+  //  /musica/resultados?q=…       resultados estilo Spotify
+  //  /musica/artista/dz-123       perfil de artista · /musica/album/dz-77 álbum
+  //  /musica/categoria/rock       categoría · /musica/playlist/:id · /musica/sala/:roomId
+  const nav = useNavigate();
+  const loc = useLocation();
+  const parts = loc.pathname.replace(/^\/musica\/?/, '').split('/').filter(Boolean);
+  const route = parts[0] || 'home';
+  const routeParam = decodeURIComponent(parts[1] || '');
+  const qParam = new URLSearchParams(loc.search).get('q') || '';
+  const mode = ({ resultados: 'results', artista: 'artist', album: 'album', categoria: 'category', playlist: 'playlist', sala: 'roompl' })[route] || 'home';
+  const searchOpen = route === 'buscar';
+  const goHome = () => nav('/musica');
+  // Volver: atrás real del historial; si se abrió directo la URL, al inicio de Música.
+  const goBack = () => { if (window.history.state && window.history.state.idx > 0) nav(-1); else nav('/musica', { replace: true }); };
+  const [q, setQ] = useState(qParam);
+  const setSearchOpen = (v) => { if (v) nav('/musica/buscar'); else if (route === 'buscar') goBack(); };
   const searchInputRef = useRef(null);
   useEffect(() => {
     if (!searchOpen) return undefined;
     const t = setTimeout(() => { try { searchInputRef.current?.focus(); } catch {} }, 80);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (e) => { if (e.key === 'Escape') setSearchOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => { clearTimeout(t); document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
+    return () => clearTimeout(t);
   }, [searchOpen]);
-  const [mode, setMode] = useState('home'); // home | results | playlist | roompl | album | category
-  const [selRoom, setSelRoom] = useState(null); // roomId de playlist de comunidad abierta
+  const selRoom = route === 'sala' ? routeParam : null; // roomId de playlist de comunidad abierta
   // Menú único (⋮ o long-press) para cualquier canción: { t, list, asRadio, kind }
   // kind: 'local' | 'yt' | 'audius' | 'pl' | 'fav' | 'chart' | 'room'
   const [menuTrack, setMenuTrack] = useState(null);
@@ -396,9 +149,18 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     return () => { dead = true; clearTimeout(t); if (iv) clearInterval(iv); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lampOn, autoArt, local?.importing]);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState([]); // videos/canciones de YouTube o Audius para la búsqueda
   const [resultsLabel, setResultsLabel] = useState('');
-  const [selCat, setSelCat] = useState(null); // { name, query, bg, term }
+  const [sCat, setSCat] = useState({ artists: [], albums: [], tracks: [] }); // catálogo real (artistas con foto, álbumes, canciones)
+  const [sCatBusy, setSCatBusy] = useState(false);
+  const [videosBusy, setVideosBusy] = useState(false);
+  const [searchedFor, setSearchedFor] = useState(''); // término al que corresponden los resultados cargados
+  // Categoría abierta: sale de la URL (/musica/categoria/rock)
+  const selCat = useMemo(() => {
+    if (route !== 'categoria') return null;
+    const hit = CATEGORIES.find(([n]) => slug(n) === routeParam);
+    return hit ? { name: hit[0], query: hit[1], bg: hit[2], term: hit[3] || hit[1] } : null;
+  }, [route, routeParam]);
   const [catSongs, setCatSongs] = useState([]);
   const [catAlbums, setCatAlbums] = useState([]);
   const [catVideos, setCatVideos] = useState([]);
@@ -414,15 +176,12 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   const [recAlbums, setRecAlbums] = useState([]);
   const [audTrend, setAudTrend] = useState([]); // tendencias Audius (solo se cargan en esa fuente)
   const [plStats, setPlStats] = useStore('h_pl_stats', {}); // { plId: reproducciones }
-  const [artistHit, setArtistHit] = useState(null);
-  const [artistTop, setArtistTop] = useState([]);
-  const [artistAlbums, setArtistAlbums] = useState([]);
-  const [selAlbum, setSelAlbum] = useState(null);
-  const [albumBack, setAlbumBack] = useState('home'); // a dónde vuelve el detalle
-  const [albumTracks, setAlbumTracks] = useState([]);
-  const [albumLoading, setAlbumLoading] = useState(false);
+  const [popTracks, setPopTracks] = useState([]); // chart global real (Deezer)
+  const [popAlbums, setPopAlbums] = useState([]);
+  const [chartsLoading, setChartsLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState(null);
-  const [selectedPl, setSelectedPl] = useState(null);
+  const selectedPl = route === 'playlist' ? routeParam : null;
+  const [createOpen, setCreateOpen] = useState(false); // hoja "Crear playlist"
   const [addTarget, setAddTarget] = useState(null);
   const [selPls, setSelPls] = useState([]); // multi-seleccion en la hoja de agregar
   useEffect(() => { setSelPls([]); }, [addTarget]);
@@ -560,7 +319,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   const pickSug = (label) => {
     setSugs([]); setSugOpen(false);
     setQ(label);
-    if (lampOn) { setSearchOpen(false); runSearch(label); } // en local, el filtro es en vivo
+    if (lampOn) goSearch(label); // en local, el filtro es en vivo
   };
 
   // Carga inicial: top + lanzamientos + aleatorias (en paralelo, cada uno con repliegue)
@@ -586,13 +345,26 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   };
   useEffect(() => {
     prewarmYouTube(); // instancia Piped en fondo desde el arranque (primera canción más rápida)
-    topSongs('CO', 10).then(setCharts).catch(() => {});
+    let dead = false;
+    topSongs(cc, 25).then((l) => { if (!dead) setCharts(l); }).catch(() => {}).finally(() => { if (!dead) setChartsLoading(false); });
     newMusic('CO', 10).then(setReleases).catch(() => {});
-    // Las aleatorias (3 búsquedas + oEmbed) esperan 1.5s: en 4G competían con
-    // la primera canción y la dejaban "cargando". La música primero, el resto después.
+    chartTracks(24).then((l) => { if (!dead) setPopTracks(l); });
+    chartAlbums(16).then((l) => { if (!dead) setPopAlbums(l); });
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Descubrimiento rápido: solo en el inicio, y 1.5 s después de entrar (en 4G competía con
+  // la primera canción y la dejaba "cargando"). La música primero, el resto después.
+  useEffect(() => {
+    if (route !== 'home' || randomSongs.length || randomLoading) return undefined;
     const t = setTimeout(() => loadRandom(), 1500);
     return () => clearTimeout(t);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route]);
+  const changeCountry = (v) => {
+    setCc(v); setChartsLoading(true);
+    topSongs(v, 25).then(setCharts).catch(() => toast('No se cargó el top', AlertTriangle)).finally(() => setChartsLoading(false));
+  };
   useEffect(() => { if (randomKey > 0) loadRandom(); }, [randomKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tendencias Audius: solo se piden al pararse en esa fuente (con cache de 5 min).
@@ -630,7 +402,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     return () => { dead = true; };
   }, [charts]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Álbumes recomendados: del artista más escuchado (o del top si no hay historial).
+  // Álbumes que te gustan: los más nuevos de tus artistas más escuchados (o del top si aún no hay historial).
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -640,86 +412,74 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
           const a = String(h.artist || '').split(',')[0].trim();
           if (a && a !== 'YouTube' && a !== 'Desconocido') count[a] = (count[a] || 0) + 1;
         }
-        const topArtist = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0]
-          || charts[0]?.artist || '';
-        if (!topArtist) return;
-        const prof = await getArtistProfile(topArtist);
-        if (dead) return;
-        if (prof.artist && prof.albums?.length) {
-          setRecAlbums(prof.albums.slice(0, 6).map((a) => ({ ...a, why: prof.artist.name })));
-        }
+        let names = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([a]) => a);
+        if (!names.length) names = charts.slice(0, 2).map((c) => String(c.artist || '').split(',')[0].trim()).filter(Boolean);
+        if (!names.length) return;
+        const list = await albumsOfArtists(names, 3);
+        if (!dead) setRecAlbums(list.slice(0, 8));
       } catch { /* sin álbumes por ahora */ }
     })();
     return () => { dead = true; };
-  }, [charts]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charts, (p.history || []).length]);
 
+  const searchTok = useRef(0);
+  /** Navega a los resultados (la URL es la fuente de verdad: /musica/resultados?q=…). */
+  const goSearch = (term) => {
+    const t = String(term || '').trim();
+    if (!t) return;
+    setSugs([]); setSugOpen(false);
+    nav(`/musica/resultados?q=${encodeURIComponent(t)}`, { replace: route === 'buscar' });
+  };
+  /** Carga lo que coincide: catálogo real (artistas con foto, álbumes, canciones) + videos. Se dispara desde la URL. */
   const runSearch = async (term) => {
-    if (!term.trim()) return;
+    const tt = String(term || '').trim();
+    if (!tt) return;
+    const tok = ++searchTok.current;
+    const live = () => tok === searchTok.current;
     setSugs([]); setSugOpen(false);
     // Guarda la búsqueda (máx 12, sin duplicados, la reciente primero)
-    const clean = term.trim().slice(0, 60);
+    const clean = tt.slice(0, 60);
     setSearchHist((h) => [clean, ...(h || []).filter((x) => x.toLowerCase() !== clean.toLowerCase())].slice(0, 12));
-    setLoading(true);
-    setArtistHit(null); setArtistTop([]); setArtistAlbums([]);
-    // Fuente Audius: canciones completas de catálogo independiente (puede
-    // no traer hits comerciales). Suenan directo, sin resolver en YouTube.
-    if (fuente === 'audius') {
-      try {
-        const [tracks, prof] = await Promise.all([
-          searchAudius(term.trim(), { limit: 20 }).catch(() => []),
-          getArtistProfile(term.trim()).catch(() => ({ artist: null, top: [], albums: [] })),
-        ]);
+    setLoading(true); setSCatBusy(true); setVideosBusy(true);
+    setSearchedFor(tt); setResultsLabel(tt);
+    setResults([]); setSCat({ artists: [], albums: [], tracks: [] });
+    // El catálogo nunca frena los videos (y al revés): cada uno llega cuando esté.
+    searchCatalog(tt).then((c) => { if (live()) setSCat(c); }).catch(() => {}).finally(() => { if (live()) setSCatBusy(false); });
+    try {
+      if (fuente === 'audius') {
+        // Audius: canciones completas de catálogo independiente. Suenan directo.
+        const tracks = await searchAudius(tt, { limit: 20 }).catch(() => []);
+        if (!live()) return;
         setResults(tracks || []);
         if (!(tracks || []).length) toast('Audius no trajo nada: prueba con indie o electrónica', AlertTriangle);
-        setArtistHit(prof.artist);
-        setArtistTop(prof.top || []);
-        setArtistAlbums(prof.albums || []);
-        setResultsLabel(term.trim());
-        setMode('results');
-        setSelectedPl(null);
-      } catch {
-        toast('Audius no responde, intenta de nuevo', AlertTriangle);
-      }
-      setLoading(false);
-      return;
-    }
-    try {
-      // Videos + perfil de artista en paralelo: el perfil nunca frena los videos.
-      const [videoRes, prof] = await Promise.all([
-        (async () => {
-          const items = await searchYouTube(term.trim(), 15);
-          const ranked = rankCandidates(items, { title: term.trim(), artist: term.trim() });
-          const pub = await filterPublic(ranked);
-          return { ranked, pub };
-        })(),
-        getArtistProfile(term.trim()).catch(() => ({ artist: null, top: [], albums: [] })),
-      ]);
-      const { ranked, pub } = videoRes;
-      if (pub.length) {
-        const dropped = ranked.length - pub.length;
-        if (dropped > 0) toast(`Se ocultaron ${dropped} no disponibles`);
-        setResults(pub);
-        // Carátulas originales en segundo plano (no bloquea la lista)
-        enrichOnlineCovers(pub, setResults).catch(() => {});
-      } else if (ranked.length) {
-        toast('Verificación sin respuesta: mostrando sin filtrar', AlertTriangle);
-        setResults(ranked);
-        enrichOnlineCovers(ranked, setResults).catch(() => {});
       } else {
-        setResults([]);
+        const items = await searchYouTube(tt, 15);
+        const ranked = rankCandidates(items, { title: tt, artist: tt });
+        const pub = await filterPublic(ranked);
+        if (!live()) return;
+        const upd = (l) => { if (live()) setResults(l); };
+        if (pub.length) {
+          setResults(pub);
+          enrichOnlineCovers(pub, upd).catch(() => {}); // carátulas originales en segundo plano
+        } else if (ranked.length) {
+          setResults(ranked);
+          enrichOnlineCovers(ranked, upd).catch(() => {});
+        } else setResults([]);
       }
-      setArtistHit(prof.artist);
-      setArtistTop(prof.top || []);
-      setArtistAlbums(prof.albums || []);
-      setResultsLabel(term.trim());
-      setMode('results');
-      setSelectedPl(null);
     } catch {
-      toast('YouTube no responde, intenta de nuevo', AlertTriangle);
+      if (live()) toast(fuente === 'audius' ? 'Audius no responde, intenta de nuevo' : 'YouTube no responde, intenta de nuevo', AlertTriangle);
     }
-    setLoading(false);
+    if (live()) { setVideosBusy(false); setLoading(false); }
   };
-  const submit = (e) => { e.preventDefault(); if (lampOn) runSearch(q); };
+  // La URL manda: al entrar a /musica/resultados?q=… (o recargar / volver) se cargan los resultados.
+  useEffect(() => {
+    if (route !== 'resultados' || !qParam.trim()) return;
+    setQ(qParam);
+    if (qParam.trim() !== searchedFor || !(results.length || sCat.tracks.length || sCat.artists.length)) runSearch(qParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, qParam, fuente]);
+  const submit = (e) => { e.preventDefault(); if (lampOn) goSearch(q); };
 
   // Herramienta web para bajar MP3 (ver ../lib/dltools): copia el link y abre
   // la herramienta elegida en Ajustes; el MP3 va a la carpeta escaneada.
@@ -799,11 +559,11 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
       if (res?.added) {
         toast('Guardada en Local: ya suena sin wifi');
         setFuente('local');
-        setMode('home');
+        goHome();
       } else if ((res?.skipped || 0) > 0 && !res?.added) {
         toast('Esa ya estaba en Local', AlertTriangle);
         setFuente('local');
-        setMode('home');
+        goHome();
       } else {
         toast('No se pudo guardar en Local', AlertTriangle);
       }
@@ -837,8 +597,11 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     try {
       const t = await resolveOfficial(entry.artist, entry.title);
       if (!t) { toast('No se encontró versión reproducible', AlertTriangle); return; }
-      if (p.playRadio) p.playRadio(t);
-      else p.play(t);
+      // La carátula original del catálogo va por encima de la miniatura de YouTube (revertible en el reproductor).
+      const orig = entry.art && !/i\.ytimg\.com/.test(entry.art) ? entry.art : '';
+      const tt = orig ? { ...t, art: orig, artOriginal: true, ytArt: t.art } : t;
+      if (p.playRadio) p.playRadio(tt);
+      else p.play(tt);
       if (!t.official) toast('Versión no oficial (la oficial no está disponible)');
     } catch {
       toast('No se pudo abrir ese tema', AlertTriangle);
@@ -847,29 +610,10 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     }
   };
 
-  /** Abre el detalle de un álbum con sus canciones (vista detalle). */
-  const openAlbum = async (album) => {
-    if (!album?.collectionId) return;
-    setAlbumBack(mode);
-    setSelAlbum(album);
-    setAlbumTracks([]);
-    setMode('album');
-    setAlbumLoading(true);
-    try {
-      const tracks = await getAlbumTracks(album.collectionId, 30);
-      setAlbumTracks(tracks);
-      if (!tracks.length) toast('Ese álbum no trajo canciones', AlertTriangle);
-    } catch {
-      toast('No se pudo abrir el álbum', AlertTriangle);
-    } finally {
-      setAlbumLoading(false);
-    }
-  };
-
   /** Reproduce el álbum completo en orden: aviso cargando → listo/fallo. */
   const playAlbum = async (album, tracks) => {
-    const list = tracks?.length ? tracks : await getAlbumTracks(album.collectionId, 30);
-    if (!list?.length) return toast('Ese álbum no trajo canciones', AlertTriangle);
+    const list = tracks || [];
+    if (!list.length) return toast('Ese álbum no trajo canciones', AlertTriangle);
     if (resolvingId) return;
     setResolvingId(album.id);
     try {
@@ -895,41 +639,34 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     }
   };
 
-  /** Radio del artista: top del artista resuelto a YouTube. */
-  const playArtistRadio = async () => {
-    if (!artistTop.length || !artistHit) return;
-    const first = artistTop[0];
-    await playEntry({ id: first.id, artist: first.artist, title: first.title });
-  };
+  /** Radio a partir de una canción del catálogo: la resuelve a YouTube y sigue la radio. */
+  const playRadioOf = (entry) => playEntry(entry);
 
-  /** Abre una categoría como ficha con disco: canciones + álbumes (iTunes)
-   *  + videos (YouTube). Si una fuente falla, las otras igual muestran. */
-  const openCategory = async (name, query, bg, term) => {
-    const cat = { name, query, bg, term: term || query };
-    setSelCat(cat);
-    setCatSongs([]); setCatAlbums([]); setCatVideos([]);
-    setMode('category');
-    setCatLoading(true);
-    try {
-      const [pack, vids] = await Promise.all([
-        getCategoryPack(cat.term).catch(() => ({ songs: [], albums: [] })),
-        (async () => {
-          try {
-            const items = await searchYouTube(query, 12);
-            return await filterPublic(rankCandidates(items, { title: query }));
-          } catch { return []; }
-        })(),
-      ]);
-      setCatSongs(pack.songs || []);
-      setCatAlbums(pack.albums || []);
-      setCatVideos(vids || []);
-      if (!(pack.songs?.length || pack.albums?.length || vids?.length)) {
-        toast('Esa categoría no trajo nada, intenta de nuevo', AlertTriangle);
-      }
-    } finally {
-      setCatLoading(false);
-    }
-  };
+  const openCategory = (name) => nav(`/musica/categoria/${slug(name)}`);
+  /** Carga la categoría de la URL: canciones + álbumes (iTunes) + videos (YouTube). Si una falla, las otras muestran. */
+  useEffect(() => {
+    if (!selCat) return undefined;
+    let dead = false;
+    setCatSongs([]); setCatAlbums([]); setCatVideos([]); setCatLoading(true);
+    (async () => {
+      try {
+        const [pack, vids] = await Promise.all([
+          getCategoryPack(selCat.term).catch(() => ({ songs: [], albums: [] })),
+          (async () => {
+            try {
+              const items = await searchYouTube(selCat.query, 12);
+              return await filterPublic(rankCandidates(items, { title: selCat.query }));
+            } catch { return []; }
+          })(),
+        ]);
+        if (dead) return;
+        setCatSongs(pack.songs || []); setCatAlbums(pack.albums || []); setCatVideos(vids || []);
+        if (!(pack.songs?.length || pack.albums?.length || vids?.length)) toast('Esa categoría no trajo nada, intenta de nuevo', AlertTriangle);
+      } finally { if (!dead) setCatLoading(false); }
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selCat?.name]);
 
   const playPlaylist = (pl) => {
     if (!pl.tracks.length) return toast('Playlist vacía, agrega temas primero', AlertTriangle);
@@ -952,10 +689,10 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   const createPl = (e) => {
     e?.preventDefault();
     const pl = pls.create(newPlName);
-    if (pl) { setNewPlName(''); setSelectedPl(pl.id); setMode('playlist'); }
+    if (pl) { setNewPlName(''); setCreateOpen(false); nav(`/musica/playlist/${pl.id}`); }
   };
 
-  const openPl = (id) => { setSelectedPl(id); setMode('playlist'); setRenaming(false); };
+  const openPl = (id) => { setRenaming(false); nav(`/musica/playlist/${id}`); };
   // Me Gusta cuenta como playlist (id 'fav') con su propio detalle.
   const sel = selectedPl === 'fav'
     ? { id: 'fav', name: 'Tus Me Gusta', tracks: p.favs || [] }
@@ -1020,20 +757,34 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     await local?.rescanSaved?.();
   };
 
+  /** Canción que ya es un video de YouTube/Audius/Local: suena (con radio si es de YouTube). */
+  const playTrack = (t, list) => (t?.source === 'YouTube' && p.playRadio ? p.playRadio(t) : p.play(t, list));
+
+  // "Reproduciendo desde …": contexto de las pantallas que no lo publican solas.
+  useEffect(() => {
+    if (mode === 'artist' || mode === 'album' || mode === 'results') return;
+    setPageContext(
+      mode === 'category' && selCat ? { from: 'Categoría', title: selCat.name }
+        : mode === 'playlist' && sel ? { from: 'Playlist', title: sel.name }
+        : mode === 'roompl' ? { from: 'Playlist', title: 'Comunidad' }
+        : searchOpen ? { from: 'Buscar', title: 'Búsquedas recientes' }
+        : { from: 'Inicio', title: 'Para ti' });
+  }, [mode, searchOpen, selCat?.name, sel?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => setPageContext(null), []);
+
+  // Contexto común de las pantallas internas (resultados, artista, álbum).
+  const ctx = { p, nav, playEntry, playAlbum, playRadioOf, resolvingId, onBack: goBack, toast,
+    openMenu: (t, list, opts) => openMenu(t, list, opts) };
+  const inHome = mode === 'home' && !searchOpen;
+
   return (
-    <>
-      <h2 className="serif text-4xl tracking-wide mb-1">Música</h2>
+    <div className="space-y-4" onClickCapture={markPending}>
+      {inHome && <h2 className="serif text-4xl tracking-wide mb-1">Música</h2>}
 
       {/* Fuente Local | YouTube | Audius: texto que toma el color de la canción */}
-      {mode === 'home' && (
-        <FuenteTabs fuente={fuente} setFuente={setFuente} art={p.track?.art} />
-      )}
+      {inHome && <FuenteTabs fuente={fuente} setFuente={setFuente} art={p.track?.art} />}
 
-      {mode === 'home' && (fuente === 'youtube' || window.location.hash.includes('spotify')) && (
-        <SpotifyPanel p={p} toast={toast} />
-      )}
-
-      {!lampOn ? (
+      {inHome && (!lampOn ? (
         <form onSubmit={submit} className="flex gap-2">
           <div className="relative flex-1">
             <input className="inp" placeholder="Filtrar tu música local…" value={q}
@@ -1043,127 +794,57 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         </form>
       ) : (
         <button onClick={() => { setSugs([]); setSugOpen(false); setSearchOpen(true); }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left active:scale-[.99] transition"
+          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-full text-left active:scale-[.99] transition"
           style={{ background: 'var(--s2)', border: '1px solid var(--bd)' }} aria-label="Abrir búsqueda">
           <Search size={17} className="shrink-0" style={{ color: 'var(--a)' }} />
-          <span className="flex-1 min-w-0 text-sm truncate" style={{ color: q ? 'var(--t)' : 'var(--m)' }}>
-            {q || 'Artista o canción…'}
-          </span>
-          <ChevronLeft size={16} className="rotate-180 shrink-0" style={{ color: 'var(--m)' }} />
+          <span className="flex-1 min-w-0 text-sm truncate" style={{ color: 'var(--m)' }}>Artistas, canciones o álbumes…</span>
         </button>
-      )}
+      ))}
 
       {searchOpen && lampOn && (
-        <SearchOverlay
+        <SearchPage
           q={q} onType={onTypeQ} sugs={sugs} loading={loading}
           onPick={pickSug}
-          onSubmit={(e) => { e?.preventDefault?.(); if (!q.trim()) return; setSearchOpen(false); runSearch(q); }}
-          onClose={() => setSearchOpen(false)}
+          onSubmit={(e) => { e?.preventDefault?.(); goSearch(q); }}
           hist={searchHist || []}
-          onPickHist={(s) => { setQ(s); setSearchOpen(false); runSearch(s); }}
+          onPickHist={(s) => { setQ(s); goSearch(s); }}
           onDelHist={(s) => setSearchHist((h) => (h || []).filter((x) => x !== s))}
           onClearHist={() => setSearchHist([])}
+          onTile={(tl) => (tl.kind === 'cat' ? openCategory(tl.query) : goSearch(tl.query))}
           inputRef={searchInputRef}
         />
       )}
 
       {mode === 'results' && (
-        <>
-          {artistHit && (
-            <div className="card !p-4 flex items-center gap-4">
-              {artistHit.art
-                ? <Cover src={artistHit.art} className="w-20 h-20 !rounded-full shrink-0" iconSize={26} />
-                : <div className="w-20 h-20 rounded-full grid place-items-center shrink-0" style={{ background: 'var(--s2)' }}><User size={28} /></div>}
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: 'var(--a)' }}>Artista</p>
-                <p className="serif text-2xl font-semibold leading-tight truncate">{artistHit.name}</p>
-                {!!artistHit.genre && <p className="text-xs truncate" style={{ color: 'var(--m)' }}>{artistHit.genre}{artistAlbums.length ? ` · ${artistAlbums.length} álbumes` : ''}</p>}
-                <div className="mt-2 flex gap-2">
-                  <button className="btn !py-1.5 !px-4 text-xs" onClick={playArtistRadio} disabled={!artistTop.length || !!resolvingId}>
-                    <Play size={14} /> Escuchar
-                  </button>
-                  {!!artistTop.length && (
-                    <button className="btn btn-o !py-1.5 !px-4 text-xs" onClick={playArtistRadio}>
-                      <Radio size={14} /> Radio
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!!artistAlbums.length && (
-            <Section icon={Library} title={`Álbumes de ${artistHit?.name || 'el artista'}`}>
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {artistAlbums.map((a) => (
-                  <HCard key={a.id} art={a.art} title={a.title} sub={`${a.releaseDate || ''}${a.trackCount ? ` · ${a.trackCount} temas` : ''}`}
-                    onClick={() => openAlbum(a)} spinning={resolvingId === a.id} badge={a.releaseDate || undefined} />
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {!!artistTop.length && (
-            <div className="card">
-              <p className="text-xs mb-2 font-semibold flex items-center gap-1.5">
-                <Sparkles size={14} style={{ color: 'var(--a)' }} /> Populares de {artistHit?.name}
-              </p>
-              {artistTop.slice(0, 5).map((s, i) => (
-                <div key={s.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-[var(--s2)]">
-                  <span className="text-sm font-semibold w-6 text-center shrink-0 tabular-nums" style={{ color: 'var(--m)' }}>{i + 1}</span>
-                  <Cover src={s.art} className="w-11 h-11 rounded-xl" />
-                  <button onClick={() => playEntry(s)} className="flex-1 min-w-0 text-left">
-                    <p className="text-sm truncate">{s.title}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--m)' }}>{s.artist}{s.duration ? ` · ${fmtTime(s.duration)}` : ''}</p>
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => playEntry(s)} aria-label={`Reproducir ${s.title}`} disabled={!!resolvingId}>
-                    {resolvingId === s.id ? <Loader2 size={17} className="animate-spin" /> : <Play size={17} />}
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => openMenu({ ...s, source: s.source || 'YouTube' }, artistTop, { kind: 'chart', onPlay: playEntry })} aria-label={`Opciones de ${s.title}`} title="Opciones"><MoreVertical size={17} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="card">
-            <button className="btn btn-o !py-1 !px-3 text-xs mb-2" onClick={() => setMode('home')}>
-              <ChevronLeft size={14} /> Volver
-            </button>
-            <p className="text-xs mb-2" style={{ color: 'var(--m)' }}>
-              {fuente === 'audius'
-                ? `Audius: completas de “${resultsLabel}” · ⬇ las guarda en Local para oír sin wifi`
-                : `Videos de “${resultsLabel}” · toca uno y la radio sigue · ⬇ guarda la versión sin wifi cuando existe`}
-            </p>
-            {results.map((t) => (
-              <TrackRow key={t.id} t={t} p={p} list={results}
-                asRadio={fuente === 'youtube' ? true : undefined}
-                onMenu={(x) => openMenu(x, results, { asRadio: fuente === 'youtube' ? true : undefined, kind: fuente })}
-                meta={<Meta t={t} />} />
-            ))}
-            {!results.length && !loading && !artistHit && <p className="text-sm" style={{ color: 'var(--m)' }}>Sin resultados.</p>}
-          </div>
-        </>
+        <SearchResults q={qParam || resultsLabel} cat={sCat} catLoading={sCatBusy} videos={results} videosLoading={videosBusy}
+          fuente={fuente} ctx={ctx} fallback={popTracks} />
       )}
+      {mode === 'artist' && <ArtistPage refId={routeParam} ctx={ctx} />}
+      {mode === 'album' && <AlbumPage refId={routeParam} ctx={ctx} />}
 
+      {mode === 'category' && !selCat && (
+        <div className="space-y-4">
+          <BackBar title="Categoría" onBack={goBack} />
+          <div className="card"><p className="text-sm" style={{ color: 'var(--m)' }}>Esa categoría no existe.</p></div>
+        </div>
+      )}
       {mode === 'category' && selCat && (
-        <>
-          <div className="relative overflow-hidden rounded-[2rem] p-5 text-white" style={{ background: selCat.bg }}>
+        <div className="space-y-8">
+          <BackBar title={selCat.name} onBack={goBack} />
+          <div className="relative overflow-hidden rounded-[2rem] p-6 text-white" style={{ background: selCat.bg }}>
             <span className="cat-glow" aria-hidden="true" />
-            <button className="btn btn-o !py-1 !px-3 text-xs mb-2 !text-white !border-white/40 relative" onClick={() => setMode('home')}>
-              <ChevronLeft size={14} /> Volver
-            </button>
             <div className="relative flex items-center gap-4">
               <div className="w-20 h-20 rounded-full grid place-items-center shrink-0 bg-black/30 border border-white/30">
                 <Disc3 size={38} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">Categoría</p>
-                <p className="serif text-3xl font-semibold leading-tight truncate">{selCat.name}</p>
+                <p className="serif text-4xl font-semibold leading-tight truncate">{selCat.name}</p>
                 <p className="text-xs opacity-80 truncate">
                   {[catSongs.length ? `${catSongs.length} canciones` : '', catAlbums.length ? `${catAlbums.length} álbumes` : '', catVideos.length ? `${catVideos.length} videos` : ''].filter(Boolean).join(' · ') || 'Buscando…'}
                 </p>
                 {!!catSongs.length && (
-                  <button className="mt-2 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform"
+                  <button className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform"
                     onClick={() => playEntry(catSongs[0])} disabled={!!resolvingId}>
                     {resolvingId ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} fill="currentColor" />} Escuchar
                   </button>
@@ -1173,95 +854,53 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
           </div>
 
           {!!catAlbums.length && (
-            <Section icon={Library} title={`Álbumes de ${selCat.name}`}>
-              <div className="flex gap-3 overflow-x-auto pb-1">
+            <UISection title="Álbumes">
+              <Shelf>
                 {catAlbums.map((a) => (
-                  <HCard key={a.id} art={a.art} title={a.title} sub={a.artist || a.releaseDate || ''}
-                    onClick={() => openAlbum(a)} badge={a.releaseDate || undefined} />
+                  <SquareCard key={a.id} art={a.art} title={a.title} sub={a.artist || a.releaseDate || ''} badge={a.releaseDate || undefined}
+                    onClick={() => nav(`/musica/album/it-${a.collectionId}`)} />
                 ))}
-              </div>
-            </Section>
+              </Shelf>
+            </UISection>
           )}
 
           {!!catSongs.length && (
-            <div className="card">
-              <p className="text-xs mb-2 font-semibold flex items-center gap-1.5">
-                <Sparkles size={14} style={{ color: 'var(--a)' }} /> Canciones de {selCat.name}
-              </p>
-              {catSongs.map((s, i) => (
-                <div key={s.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-[var(--s2)]">
-                  <span className="text-sm font-semibold w-6 text-center shrink-0 tabular-nums" style={{ color: 'var(--m)' }}>{i + 1}</span>
-                  <Cover src={s.art} className="w-11 h-11 rounded-xl" />
-                  <button onClick={() => playEntry(s)} className="flex-1 min-w-0 text-left">
-                    <p className="text-sm truncate">{s.title}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--m)' }}>{s.artist}{s.duration ? ` · ${fmtTime(s.duration)}` : ''}</p>
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => playEntry(s)} aria-label={`Reproducir ${s.title}`} disabled={!!resolvingId}>
-                    {resolvingId === s.id ? <Loader2 size={17} className="animate-spin" /> : <Play size={17} />}
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => openMenu({ ...s, source: s.source || 'YouTube' }, catSongs, { kind: 'chart', onPlay: playEntry })} aria-label={`Opciones de ${s.title}`} title="Opciones"><MoreVertical size={17} /></button>
-                </div>
-              ))}
-            </div>
+            <UISection title="Canciones">
+              <div className="card !p-2">
+                {catSongs.map((s, i) => {
+                  const on = isNow(p.track, s);
+                  return (
+                    <SongRow key={s.id} n={i + 1} art={s.art} title={s.title} sub={s.artist} duration={s.duration}
+                      active={on} playing={p.playing} loading={resolvingId === s.id}
+                      onPlay={() => (on ? p.openFull?.() : playEntry(s))}
+                      onMenu={() => openMenu({ ...s, source: s.source || 'YouTube' }, catSongs, { kind: 'chart', onPlay: playEntry })} />
+                  );
+                })}
+              </div>
+            </UISection>
           )}
 
-          <div className="card">
-            <p className="text-xs mb-2" style={{ color: 'var(--m)' }}>Videos de {selCat.name} · toca uno y sigue la radio</p>
+          <UISection title="Videos" sub="Toca uno y sigue la radio">
             {catLoading && !catVideos.length && !catSongs.length && (
               <p className="text-xs py-2 flex items-center gap-2" style={{ color: 'var(--m)' }}><Loader2 size={14} className="animate-spin" /> Buscando en la categoría…</p>
             )}
-            {catVideos.map((t) => (
-              <TrackRow key={t.id} t={t} p={p} list={catVideos}
-                onMenu={(x) => openMenu(x, catVideos, { asRadio: true, kind: fuente })}
-                asRadio meta={<Meta t={t} />} />
-            ))}
-            {!catVideos.length && !catLoading && !!catSongs.length && (
-              <p className="text-xs" style={{ color: 'var(--m)' }}>Videos no disponibles por ahora; arriba tienes canciones y álbumes.</p>
-            )}
-          </div>
-        </>
-      )}
-
-      {mode === 'album' && selAlbum && (
-        <div className="card">
-          <button className="btn btn-o !py-1 !px-3 text-xs mb-3" onClick={() => setMode(albumBack || 'home')}>
-            <ChevronLeft size={14} /> Volver
-          </button>
-          <div className="flex items-center gap-4 mb-3">
-            <Cover src={selAlbum.art} className="w-24 h-24 rounded-3xl shadow-lg shrink-0" iconSize={30} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: 'var(--a)' }}>Álbum{selAlbum.releaseDate ? ` · ${selAlbum.releaseDate}` : ''}</p>
-              <p className="serif text-2xl font-semibold leading-tight line-clamp-2">{selAlbum.title}</p>
-              <p className="text-sm truncate" style={{ color: 'var(--m)' }}>{selAlbum.artist}</p>
-              {!!selAlbum.trackCount && <p className="text-[11px]" style={{ color: 'var(--m)' }}>{albumTracks.length || selAlbum.trackCount} canciones</p>}
+            <div className="card !p-2">
+              {catVideos.map((t) => (
+                <TrackRow key={t.id} t={t} p={p} list={catVideos}
+                  onMenu={(x) => openMenu(x, catVideos, { asRadio: true, kind: fuente })} asRadio meta={<Meta t={t} />} />
+              ))}
+              {!catVideos.length && !catLoading && <p className="text-xs p-2" style={{ color: 'var(--m)' }}>Videos no disponibles por ahora; arriba tienes canciones y álbumes.</p>}
             </div>
-          </div>
-          <button className="btn w-full mb-2" onClick={() => playAlbum(selAlbum, albumTracks)} disabled={albumLoading || !!resolvingId}>
-            {resolvingId === selAlbum.id ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-            {resolvingId === selAlbum.id ? 'Resolviendo álbum…' : 'Reproducir álbum'}
-          </button>
-          {albumLoading && <p className="text-xs py-2 flex items-center gap-2" style={{ color: 'var(--m)' }}><Loader2 size={14} className="animate-spin" /> Cargando canciones…</p>}
-          {!albumLoading && albumTracks.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-[var(--s2)]">
-              <span className="text-xs w-6 text-center shrink-0 tabular-nums" style={{ color: 'var(--m)' }}>{s.trackNumber || '•'}</span>
-              <button onClick={() => playEntry(s)} className="flex-1 min-w-0 text-left">
-                <p className="text-sm truncate">{s.title}</p>
-                <p className="text-xs truncate" style={{ color: 'var(--m)' }}>{s.artist}{s.duration ? ` · ${fmtTime(s.duration)}` : ''}</p>
-              </button>
-              <button className="ico-btn shrink-0" onClick={() => playEntry(s)} aria-label={`Reproducir ${s.title}`} disabled={!!resolvingId}>
-                {resolvingId === s.id ? <Loader2 size={17} className="animate-spin" /> : <Play size={17} />}
-              </button>
-              <button className="ico-btn shrink-0" onClick={() => openMenu({ ...s, source: s.source || 'YouTube' }, albumTracks, { kind: 'chart', onPlay: playEntry })} aria-label={`Opciones de ${s.title}`} title="Opciones"><MoreVertical size={17} /></button>
-            </div>
-          ))}
+          </UISection>
         </div>
       )}
 
+      {mode === 'playlist' && !sel && (
+        <div className="space-y-4"><BackBar title="Playlist" onBack={goBack} /><div className="card"><p className="text-sm" style={{ color: 'var(--m)' }}>Esa playlist ya no existe.</p></div></div>
+      )}
       {mode === 'playlist' && sel && (
         <>
-          <button className="btn btn-o !py-1 !px-3 text-xs" onClick={() => setMode('home')}>
-            <ChevronLeft size={14} /> Volver
-          </button>
+          <BackBar title={sel.name} onBack={goBack} />
           <PlaylistHero
             art={sel.tracks[0]?.art}
             icon={<ListMusic size={30} />}
@@ -1291,7 +930,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
                 <button className="ico-btn shrink-0" onClick={() => { setRenameVal(sel.name); setRenaming((r) => !r); }} aria-label="Renombrar"><Pencil size={16} /></button>
               )}
               {!isFavPl && (
-                <button className="ico-btn shrink-0" onClick={() => { pls.remove(sel.id); setMode('home'); }} aria-label="Eliminar playlist"><Trash2 size={16} /></button>
+                <button className="ico-btn shrink-0" onClick={() => { pls.remove(sel.id); goHome(); }} aria-label="Eliminar playlist"><Trash2 size={16} /></button>
               )}
             </div>
           {sel.tracks.map((t) => (
@@ -1311,9 +950,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         const pl = roomPls.find((x) => x.roomId === selRoom);
         if (!pl) return (
           <>
-            <button className="btn btn-o !py-1 !px-3 text-xs" onClick={() => setMode('home')}>
-              <ChevronLeft size={14} /> Volver
-            </button>
+            <BackBar title="Playlist" onBack={goBack} />
             <div className="card"><p className="text-sm" style={{ color: 'var(--m)' }}>Esa playlist ya no está disponible.</p></div>
           </>
         );
@@ -1323,9 +960,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         const list = (pl.tracks || []).filter((t) => t.videoId || t.src);
         return (
           <>
-            <button className="btn btn-o !py-1 !px-3 text-xs" onClick={() => setMode('home')}>
-              <ChevronLeft size={14} /> Volver
-            </button>
+            <BackBar title={title} onBack={goBack} />
             <PlaylistHero
               art={pl.tracks[0]?.art}
               icon={isDuo ? <Users size={30} /> : (pl.icon || <Users size={30} />)}
@@ -1358,263 +993,17 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         );
       })()}
 
-      {mode === 'home' && lampOn && (
-        <>
-          <Hero p={p} feat={recs[0] || releases[0] || charts[0]} playEntry={playEntry} resolving={!!resolvingId} />
-          {fuente === 'audius' && (
-            <Section icon={Disc3} title="Tendencias Audius">
-              <p className="text-[11px] mb-2" style={{ color: 'var(--m)' }}>
-                Completas y descargables · catálogo independiente (el mainstream suele faltar aquí)
-              </p>
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {audTrend.map((c) => (
-                  <HCard key={c.id} art={c.art} title={c.title} sub={c.artist}
-                    onClick={() => p.play(c, audTrend)} spinning={resolvingId === c.id} badge="Audius" />
-                ))}
-                {!audTrend.length && <p className="text-xs" style={{ color: 'var(--m)' }}>Cargando…</p>}
-              </div>
-            </Section>
-          )}
-          <div className="grid grid-cols-3 gap-2">
-            {MOODS.map(([label, query, I, bg]) => (
-              <button key={label} onClick={() => { setQ(label); runSearch(query); }}
-                className="relative overflow-hidden rounded-2xl p-3 text-left text-white active:scale-95 transition-transform min-h-[76px]"
-                style={{ background: bg }}>
-                <I size={34} className="absolute -right-1.5 -bottom-1.5 opacity-25" />
-                <I size={16} />
-                <span className="block text-[13px] font-semibold leading-tight mt-2">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Radio automática siempre activa: toca un tema y siguen otros distintos del mismo estilo */}
-          <div className="card flex items-center gap-3 !py-3">
-            <div className="w-10 h-10 rounded-2xl grid place-items-center text-white shrink-0"
-              style={{ background: 'linear-gradient(135deg, var(--a), #4c1d95)' }}>
-              {p.radioBusy ? <Loader2 size={18} className="animate-spin" /> : <Radio size={18} />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Radio automática activa{p.radioBusy ? ' · buscando…' : ''}</p>
-              <p className="text-[11px] truncate" style={{ color: 'var(--m)' }}>
-                Recomendadas primero y luego aleatorias: viejitas, otros géneros y populares
-              </p>
-            </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full text-white shrink-0"
-              style={{ background: 'var(--a)' }}>
-              Activa
-            </span>
-          </div>
-
-          {(p.history || []).length > 0 && (
-            <Section icon={History} title="Historial" action={
-              <button className="text-[11px]" style={{ color: 'var(--m)' }} onClick={() => p.clearHistory()}>Limpiar</button>
-            }>
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {(p.history || []).slice(0, 12).map((h) => (
-                  <HCard key={`${h.id}-${h.at}`} art={h.art} title={h.title} sub={h.artist}
-                    onClick={() => (p.track?.id === h.id ? p.openFull?.() : (p.playRadio ? p.playRadio(h) : p.play(h)))} spinning={resolvingId === h.id}
-                    onDownload={() => descargarSong(h)} downloading={dlId === h.id} />
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {(!!(p.favs || []).length || pls.playlists.length > 0) && (
-            <Section icon={Trophy} title="Tus más escuchadas">
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {!!(p.favs || []).length && (
-                  <PlaylistCard pl={{ id: 'fav', name: 'Tus Me Gusta', tracks: p.favs }}
-                    plays={plStats.fav || 0} onClick={() => openPl('fav')} />
-                )}
-                {topPls.map((pl) => (
-                  <PlaylistCard key={pl.id} pl={pl}
-                    plays={plStats[pl.id] || 0} onClick={() => openPl(pl.id)} />
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {!!recs.length && (
-            <Section icon={Sparkles} title="Hecho para ti">
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {recs.map((t) => (
-                  <HCard key={t.id} art={t.art} title={t.title} sub={t.artist}
-                    onClick={() => (p.track?.id === t.id ? p.openFull?.() : (p.playRadio ? p.playRadio(t) : p.play(t, recs)))} badge={t.why ? `Como ${t.why}`.slice(0, 18) : undefined}
-                    onDownload={() => descargarSong(t)} downloading={dlId === t.id} />
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {!!recAlbums.length && (
-            <Section icon={Library} title="Álbumes para ti">
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {recAlbums.map((a) => (
-                  <HCard key={a.id} art={a.art} title={a.title} sub={a.artist}
-                    onClick={() => openAlbum(a)} badge={a.releaseDate || undefined} />
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* Comunidad: playlists hechas en grupos y de a 2, con chatear */}
-          {!!roomPls.length && (() => {
-            const duos = roomPls.filter((x) => x.kind === 'dm');
-            const groups = roomPls.filter((x) => x.kind !== 'dm');
-            const playRoom = (pl) => {
-              const list = (pl.tracks || []).filter((t) => t.videoId || t.src);
-              if (list.length) p.play(list[0], list);
-              else toast('Esa playlist no tiene temas reproducibles', AlertTriangle);
-            };
-            const chatRoom = (pl) => {
-              if (onOpenRoom) onOpenRoom(pl.roomId);
-              else toast('Abre Comunidad para chatear', AlertTriangle);
-            };
-            const openRoom = (pl) => { setSelRoom(pl.roomId); setMode('roompl'); };
-            return (
-              <Section icon={Users} title="Comunidad">
-                {!!duos.length && (
-                  <>
-                    <p className="text-[11px] font-semibold mb-1.5 px-1" style={{ color: 'var(--m)' }}>De a 2</p>
-                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-2">
-                      {duos.map((pl) => (
-                        <RoomPlCard key={pl.id} pl={pl} peer={peers[pl.roomId]} myAvatar={myAvatar}
-                          onOpen={() => openRoom(pl)} onPlay={() => playRoom(pl)} onChat={() => chatRoom(pl)} />
-                      ))}
-                    </div>
-                  </>
-                )}
-                {!!groups.length && (
-                  <>
-                    <p className="text-[11px] font-semibold mb-1.5 px-1" style={{ color: 'var(--m)' }}>Grupos</p>
-                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
-                      {groups.map((pl) => (
-                        <RoomPlCard key={pl.id} pl={pl} myAvatar={myAvatar}
-                          onOpen={() => openRoom(pl)} onPlay={() => playRoom(pl)} onChat={() => chatRoom(pl)} />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </Section>
-            );
-          })()}
-          {!roomPls.length && (
-            <div className="card flex items-center gap-3 !py-3">
-              <div className="w-10 h-10 rounded-2xl grid place-items-center text-white shrink-0"
-                style={{ background: 'linear-gradient(135deg, var(--a), #4c1d95)' }}>
-                <Users size={18} />
-              </div>
-              <p className="text-xs flex-1" style={{ color: 'var(--m)' }}>
-                Comparte canciones en Comunidad o en el chat y sus playlists aparecen aquí.
-              </p>
-            </div>
-          )}
-
-          <Section icon={Shuffle} title="Canciones aleatorias" action={
-            <button className="text-[11px] px-2.5 py-1.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--s2)', color: 'var(--m)' }}
-              onClick={() => setRandomKey((k) => k + 1)} aria-label="Mezclar canciones aleatorias">
-              <Shuffle size={12} /> Mezclar
-            </button>
-          }>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {randomSongs.map((t) => (
-                <HCard key={t.id} art={t.art} title={t.title} sub={t.artist}
-                  onClick={() => (p.track?.id === t.id ? p.openFull?.() : (p.playRadio ? p.playRadio(t) : p.play(t, randomSongs)))} badge={t.official ? 'Oficial' : undefined}
-                  onDownload={() => descargarSong(t)} downloading={dlId === t.id} />
-              ))}
-              {!randomSongs.length && <p className="text-xs" style={{ color: 'var(--m)' }}>{randomLoading ? 'Mezclando…' : 'Toca Mezclar para traer canciones.'}</p>}
-            </div>
-          </Section>
-
-          <Section icon={LayoutGrid} title="Categorías">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-              {CATEGORIES.map(([name, query, bg, term]) => (
-                <button key={name} onClick={() => openCategory(name, query, bg, term)}
-                  className="cat-btn rounded-[1.25rem] px-4 h-20 flex flex-col items-center justify-center text-center text-white relative overflow-hidden"
-                  style={{ background: bg }}>
-                  <span className="cat-glow" aria-hidden="true" />
-                  <span className="relative text-lg font-bold leading-tight tracking-wide" style={{ textShadow: '0 2px 10px rgba(0,0,0,.45)' }}>{name}</span>
-                  <Play size={15} className="cat-play absolute top-2.5 right-2.5" fill="currentColor" />
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          <Section icon={TrendingUp} title="Tendencias" action={
-            <select className="inp !w-auto !py-1.5 !rounded-full text-xs" value={cc} aria-label="País del top"
-              onChange={(e) => { setCc(e.target.value); topSongs(e.target.value, 10).then(setCharts).catch(() => toast('No se cargó el top', AlertTriangle)); }}>
-              {CHART_COUNTRIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          }>
-            <div className="card !p-2">
-              {charts.slice(0, 8).map((c) => (
-                <div key={c.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-[var(--s2)]">
-                  <span className="text-sm font-semibold w-6 text-center shrink-0 tabular-nums" style={{ color: 'var(--m)' }}>{c.rank}</span>
-                  <Cover src={c.art} className="w-11 h-11 rounded-xl" />
-                  <button onClick={() => playEntry(c)} className="flex-1 min-w-0 text-left">
-                    <p className="text-sm truncate">{c.title}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--m)' }}>{c.artist}</p>
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => downloadEntry(c)} aria-label={`Descargar ${c.title}`} title="Guardar sin wifi en Local" disabled={!!resolvingId || !!dlId}>
-                    {dlId === c.id ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => playEntry(c)} aria-label={`Reproducir ${c.title}`} disabled={!!resolvingId}>
-                    {resolvingId === c.id ? <Loader2 size={17} className="animate-spin" /> : <Play size={17} />}
-                  </button>
-                </div>
-              ))}
-              {!charts.length && <p className="text-xs p-2" style={{ color: 'var(--m)' }}>Cargando top…</p>}
-            </div>
-          </Section>
-
-          <Section icon={ListMusic} title="Tus playlists">
-            <div className="grid gap-2">
-              <div className="flex items-center gap-3 p-3 rounded-2xl text-white" style={{ background: 'linear-gradient(135deg, var(--a), #4c1d95)' }}>
-                <Heart size={22} fill="currentColor" className="shrink-0" />
-                <button onClick={() => openPl('fav')} className="flex-1 text-left" aria-label="Abrir me gusta">
-                  <p className="font-bold text-[15px]">Tus Me Gusta</p>
-                  <p className="text-xs opacity-80">{p.favs.length} canciones</p>
-                </button>
-                <button className="ico-btn !text-white" aria-label="Reproducir me gusta"
-                  onClick={() => p.favs.length ? playPlaylist({ id: 'fav', tracks: p.favs }) : toast('Aún no tienes favoritos', AlertTriangle)}>
-                  <Play size={18} />
-                </button>
-              </div>
-              {pls.playlists.map((pl) => (
-                <div key={pl.id} className="flex items-center gap-3 p-2 rounded-2xl hover:bg-[var(--s2)] card !p-2">
-                  {pl.tracks[0]?.art
-                    ? <Cover src={pl.tracks[0].art} className="w-11 h-11 rounded-xl" />
-                    : <div className="w-11 h-11 rounded-xl grid place-items-center shrink-0" style={{ background: 'var(--s2)' }}><ListMusic size={17} /></div>}
-                  <button onClick={() => openPl(pl.id)} className="flex-1 min-w-0 text-left">
-                    <p className="text-sm font-medium truncate">{pl.name}</p>
-                    <p className="text-xs" style={{ color: 'var(--m)' }}>{pl.tracks.length} canciones</p>
-                  </button>
-                  <button className="ico-btn shrink-0" onClick={() => playPlaylist(pl)} aria-label={`Reproducir ${pl.name}`}><Play size={17} /></button>
-                </div>
-              ))}
-              <form onSubmit={createPl} className="flex gap-2">
-                <input className="inp" placeholder="Nueva playlist…" value={newPlName}
-                  onChange={(e) => setNewPlName(e.target.value)} maxLength={40} aria-label="Nombre de playlist" />
-                <button className="btn shrink-0" aria-label="Crear playlist"><Plus size={16} />Crear</button>
-              </form>
-            </div>
-          </Section>
-
-          {!!p.favs.length && (
-            <Section icon={Heart} title="Favoritos">
-              <div className="card !p-2">
-                {p.favs.slice(0, 6).map((t) => (
-                  <TrackRow key={t.id} t={t} p={p} list={p.favs}
-                    onMenu={(x) => openMenu(x, p.favs, { kind: 'fav' })}
-                    meta={<Meta t={t} />} />
-                ))}
-              </div>
-            </Section>
-          )}
-        </>
+      {mode === 'home' && !searchOpen && lampOn && (
+        <MusicHome h={{
+          p, toast, nav, fuente, resolvingId, playEntry, playFeat: (t) => (t?.videoId || t?.src ? playTrack(t) : playEntry(t)),
+          playTrack, openMenu, goSearch, openCategory, openPl, onCreatePl: () => setCreateOpen(true),
+          recs, recAlbums, charts, chartsLoading, cc, changeCountry, randomSongs, randomLoading, reshuffle: () => setRandomKey((k) => k + 1),
+          popTracks, popAlbums, audTrend, roomPls, peers, myAvatar, onOpenRoom, pls, plStats,
+          hero: recs[0] || releases[0] || charts[0],
+        }} />
       )}
 
-      {mode === 'home' && !lampOn && (
+      {mode === 'home' && !searchOpen && !lampOn && (
         <>
           {(() => {
             const lastLocal = (p.history || []).map((h) => (local?.tracks || []).find((t) => t.id === h.id)).find(Boolean)
@@ -1944,6 +1333,21 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         </>
       )}
 
+      {/* Hoja: crear playlist (desde el final de "Volver a escuchar") */}
+      {createOpen && (
+        <div className="fixed inset-0 z-40 grid place-items-end sm:place-items-center p-4" role="dialog" aria-modal="true" aria-label="Crear playlist">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setCreateOpen(false)} />
+          <form onSubmit={createPl} className="relative card w-full max-w-sm !rounded-3xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="serif text-2xl font-semibold">Nueva playlist</p>
+              <button type="button" className="ico-btn" onClick={() => setCreateOpen(false)} aria-label="Cerrar"><X size={17} /></button>
+            </div>
+            <input className="inp" autoFocus placeholder="Nombre de la playlist" value={newPlName} onChange={(e) => setNewPlName(e.target.value)} maxLength={40} aria-label="Nombre de playlist" />
+            <button className="btn w-full mt-3" disabled={!newPlName.trim()}><Plus size={16} /> Crear</button>
+          </form>
+        </div>
+      )}
+
       {/* Hoja: agregar a playlists (multi-seleccion + crear) */}
       {addTarget && (
         <div className="fixed inset-0 z-40 grid place-items-end sm:place-items-center p-4" role="dialog" aria-modal="true" aria-label="Agregar a playlists">
@@ -2024,6 +1428,6 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
       <p className="text-[11px]" style={{ color: 'var(--m)' }}>
         Solo YouTube, siempre completo: oficiales primero, no disponibles ocultos. Playlists en este dispositivo.
       </p>
-    </>
+    </div>
   );
 }

@@ -1,10 +1,15 @@
 // Carátulas ORIGINALES (no el frame del video).
-// Prioridad: 1) iTunes 600px (arte oficial del álbum) -> 2) MusicBrainz + Cover Art Archive (arte original escaneado)
-// -> 3) Audius 1000px -> 4) YouTube maxres/hq (último recurso).
+// Prioridad: 1) Deezer 1000px (arte oficial del álbum) -> 2) iTunes 600px -> 3) MusicBrainz + Cover Art Archive
+// -> 4) YouTube hq (último recurso: solo si ninguna fuente tiene la original).
+// Las miniaturas de YouTube suelen traer título "Artista - Tema (Official Video)" y el canal como artista
+// ("ArtistaVEVO", "- Topic"): se prueban varias lecturas del título antes de rendirse.
 // Todo gratis, sin key, CORS abierto. Cache memoria + localStorage.
 
+import { dzRaw } from './catalog';
+import { prefersYT } from '../lib/artPref';
+
 const mem = new Map(); // "titulo|artista" -> { t, url }
-const LS = 'h_cover_cache_v1';
+const LS = 'h_cover_cache_v2';
 const QS = (s) => encodeURIComponent(s || '');
 
 function lsGet(key) {
@@ -102,26 +107,64 @@ async function fromMusicBrainz(title, artist) {
   return null;
 }
 
+const cleanChannel = (s) => String(s || '')
+  .replace(/\s*-\s*topic\s*$/i, '').replace(/vevo\s*$/i, '').replace(/\s*(official|oficial)(\s+channel|\s+music)?\s*$/i, '').trim();
+
+/** Lecturas posibles de (artista, título): el dato tal cual y "Artista - Tema" dentro del título. */
+function candidates(title, artist) {
+  const out = [];
+  const a0 = cleanChannel(artist);
+  const t0 = cleanTrack(title);
+  const m = t0.split(/\s[-–—|:]\s/);
+  if (m.length >= 2) {
+    out.push({ artist: m[0].trim(), title: m.slice(1).join(' ').trim() });
+    out.push({ artist: m[m.length - 1].trim(), title: m[0].trim() });
+  }
+  out.push({ artist: a0, title: t0 });
+  if (a0) out.push({ artist: '', title: `${a0} ${t0}` });
+  const seen = new Set();
+  return out.filter((c) => c.title && !seen.has(`${norm(c.artist)}|${norm(c.title)}`) && seen.add(`${norm(c.artist)}|${norm(c.title)}`)).slice(0, 4);
+}
+
+// 0) Deezer: carátula del álbum a 1000px. Exige coincidencia de título y, si hay artista, de artista.
+async function fromDeezer(title, artist) {
+  const q = artist ? `artist:"${cleanTrack(artist)}" track:"${cleanTrack(title)}"` : cleanTrack(title);
+  const j = await dzRaw(`/search/track?q=${QS(q)}&limit=8`, 7000);
+  const tt = toks(title); const at = toks(artist);
+  let best = null; let bs = 0;
+  for (const r of j.data || []) {
+    const cover = r.album?.cover_xl || r.album?.cover_big;
+    // Deezer devuelve una portada genérica cuando el álbum no tiene imagen: md5_image vacío = sin carátula real.
+    if (!cover || !r.album?.md5_image) continue;
+    const to = overlap(tt, toks(r.title_short || r.title));
+    const ao = at.length ? overlap(at, toks(r.artist?.name)) : 0.5;
+    if (to < 0.5 || ao < 0.34) continue;
+    const sc = to * 0.7 + ao * 0.3;
+    if (sc > bs) { bs = sc; best = cover; }
+  }
+  return best;
+}
+
 /** Carátula original para título+artista. Devuelve URL http (no dataURL) o ''. Nunca lanza. */
 export async function getOriginalCover(title, artist, { videoId = null } = {}) {
-  const key = `${norm(cleanTrack(title))}|${norm(cleanTrack(artist))}`;
+  const key = `${norm(cleanTrack(title))}|${norm(cleanChannel(artist))}`;
   if (!cleanTrack(title)) return '';
   const m = mem.get(key);
   if (m && Date.now() - m.t < 30 * 24 * 3600 * 1000) return m.url;
   const ls = lsGet(key);
   if (ls) { mem.set(key, { t: Date.now(), url: ls }); return ls; }
+  const save = (url) => { mem.set(key, { t: Date.now(), url }); lsSet(key, url); return url; };
 
-  // iTunes primero (más rápido y fiable en latinos/comercial)
-  try {
-    const it = await fromITunes(title, artist);
-    if (it) { mem.set(key, { t: Date.now(), url: it }); lsSet(key, it); return it; }
-  } catch {}
-  // MusicBrainz/CAA (original escaneado, mejor en rock/clásica/catalogo)
-  try {
-    const mb = await fromMusicBrainz(title, artist);
-    if (mb) { mem.set(key, { t: Date.now(), url: mb }); lsSet(key, mb); return mb; }
-  } catch {}
-  // Último recurso: frame HD del video
+  for (const c of candidates(title, artist)) {
+    // Deezer primero (1000px); iTunes como segunda opinión.
+    try { const dz = await fromDeezer(c.title, c.artist); if (dz) return save(dz); } catch { /* siguiente fuente */ }
+    try { const it = await fromITunes(c.title, c.artist); if (it) return save(it); } catch { /* siguiente fuente */ }
+  }
+  // MusicBrainz/CAA (original escaneado, mejor en rock/clásica/catálogo)
+  for (const c of candidates(title, artist).slice(0, 2)) {
+    try { const mb = await fromMusicBrainz(c.title, c.artist); if (mb) return save(mb); } catch { /* siguiente */ }
+  }
+  // Último recurso: la miniatura de YouTube (solo si no existe la original en ninguna fuente)
   if (videoId) {
     const yt = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     mem.set(key, { t: Date.now(), url: yt });
@@ -139,7 +182,7 @@ export async function enrichOnlineCovers(list, onUpdate, { concurrency = 4 } = {
   // Solo los que aún traen thumb de YouTube (los de iTunes/Audius ya son originales)
   const idxs = [];
   out.forEach((t, i) => {
-    if (t && /i\.ytimg\.com/.test(String(t.art || '')) && t.title) idxs.push(i);
+    if (t && /i\.ytimg\.com/.test(String(t.art || '')) && t.title && !prefersYT(t.id)) idxs.push(i);
   });
   if (!idxs.length) return out;
   let cursor = 0;
@@ -150,7 +193,7 @@ export async function enrichOnlineCovers(list, onUpdate, { concurrency = 4 } = {
       try {
         const url = await getOriginalCover(t.title, t.artist, { videoId: t.videoId });
         if (url && !/i\.ytimg\.com/.test(url)) {
-          out[i] = { ...t, art: url, artOriginal: true };
+          out[i] = { ...t, art: url, artOriginal: true, ytArt: t.art };
           // Actualiza por lotes cada 3 para no re-renderizar 20 veces
           if (idxs.indexOf(i) % 3 === 0) onUpdate(out.slice());
         }

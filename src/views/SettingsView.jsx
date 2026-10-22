@@ -16,8 +16,8 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
   const [lbState, setLbState] = useState(null); // null | checking | ok | bad
   const [spTick, setSpTick] = useState(0);
   const spOn = spotifyConnected();
-  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'hermes-default'); // hermes-default | hermes-02 | hermes-03
-  const playerTheme = playerThemeRaw === 'hermes' ? 'hermes-default' : playerThemeRaw === 'bitchord' ? 'hermes-02' : playerThemeRaw === 'spotify' ? 'hermes-03' : playerThemeRaw;
+  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'hermes-04'); // hermes-04 (BitChord) | hermes-03 (Spotify)
+  const playerTheme = playerThemeRaw === 'hermes-03' || playerThemeRaw === 'spotify' ? 'hermes-03' : 'hermes-04';
   const [miniTheme, setMiniTheme] = useStore('h_mini_theme', 'float'); // float | bar
   const checkLB = async () => {
     if (!lbToken.trim()) { toast?.('Pega tu token ListenBrainz primero'); return; }
@@ -75,10 +75,10 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
       </div>
       <div className="card">
         <p className="text-sm mb-1 font-semibold">Estilo del reproductor</p>
-        <p className="text-xs mb-3" style={{ color: 'var(--m)' }}>Hermes Default viene por defecto. Cambia sin cortar la música.</p>
+        <p className="text-xs mb-3" style={{ color: 'var(--m)' }}>Elige entre BitChord y Spotify. Cambia sin cortar la música.</p>
         <p className="text-xs mb-1 font-semibold">Sonando full</p>
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {[['hermes-default', 'Hermes Default'], ['hermes-02', 'Hermes 02'], ['hermes-03', 'Hermes 03'], ['hermes-04', 'Hermes 04 Wave']].map(([id, label]) => (
+          {[['hermes-04', 'BitChord'], ['hermes-03', 'Spotify']].map(([id, label]) => (
             <button key={id} onClick={() => { setPlayerTheme(id); toast?.(`Sonando: ${label}`); }}
               className={`flex-1 px-3 py-2 rounded-full text-xs font-semibold ${playerTheme === id ? 'btn' : 'btn btn-o'}`}>{label}</button>
           ))}
