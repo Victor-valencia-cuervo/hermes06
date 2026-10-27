@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Section, Shelf, SquareCard, SongRow, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
+import { GlassBackdrop, GlassPanel, Section, Shelf, SquareCard, SongRow, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
 import useArtColors from '../../hooks/useArtColors';
 import { setPageContext } from '../../lib/playContext';
 import { getAlbumBundle, getArtistBundle, artistPath, albumPath } from '../../services/catalog';
@@ -45,7 +45,8 @@ export default function AlbumPage({ refId, ctx }) {
   const shuffleAll = () => { if (!album || !tracks.length) return; playAlbum({ ...album }, [...tracks].sort(() => Math.random() - 0.5)); };
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-7 relative isolate">
+      <GlassBackdrop img={album?.art} />
       <ImmersivePage img={album?.art} alt={album?.title} tint={tint} onBack={onBack}>
         <div className="text-center">
           <p className="text-[11px] font-bold tracking-[0.25em] uppercase" style={{ color: 'var(--m)' }}>{album?.type === 'single' ? 'Sencillo' : album?.type === 'ep' ? 'EP' : 'Álbum'}</p>
@@ -64,7 +65,7 @@ export default function AlbumPage({ refId, ctx }) {
       </ImmersivePage>
 
       {data === undefined ? <RowsSkeleton n={8} /> : (
-        <div>
+        <GlassPanel>
           {tracks.map((t, i) => {
             const on = isNow(p.track, t);
             return (
@@ -76,7 +77,7 @@ export default function AlbumPage({ refId, ctx }) {
           })}
           {!tracks.length && <p className="text-sm p-3" style={{ color: 'var(--m)' }}>Ese álbum no trajo canciones.</p>}
           {!!total && <p className="text-xs px-3 pt-2 pb-1" style={{ color: 'var(--m)' }}>{tracks.length} canciones · {fmtTime(total)}</p>}
-        </div>
+        </GlassPanel>
       )}
 
       {!!more.length && (

@@ -151,12 +151,20 @@ export default function MoreSheet({ p, toast, bits, theme, setTheme, onClose, on
       </Group>
 
       {bits.lines.length > 0 && (
-        <Group icon={Gauge} title="Sincronía de la letra">
-          <div className="flex items-center gap-2">
-            <button className="px-4 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => Math.max(-5, +(o - 0.5).toFixed(1)))}>−0,5 s</button>
-            <span className="tabular-nums w-14 text-center text-[14px]">{bits.lrcOffset > 0 ? `+${bits.lrcOffset}` : bits.lrcOffset} s</span>
-            <button className="px-4 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => Math.min(5, +(o + 0.5).toFixed(1)))}>+0,5 s</button>
+        <Group icon={Gauge} title="Sincronía de la letra"
+          note={bits.lrcIsManual ? 'Ajuste guardado para esta canción. Si la letra sale antes de tiempo, usa −.' : bits.lrcAuto ? `Ajuste automático de ${String(bits.lrcAuto).replace('.', ',')} s por la intro del video. Si la letra sale antes de tiempo, usa −.` : 'Si la letra sale antes de tiempo, usa −; si sale tarde, usa +. Se recuerda por canción.'}>
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            <button className="px-3 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => o - 2)}>−2 s</button>
+            <button className="px-3 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => o - 0.5)}>−0,5</button>
+            <span className="tabular-nums w-16 text-center text-[14px]">{(bits.lrcOffset > 0 ? '+' : '') + String(bits.lrcOffset).replace('.', ',')} s</span>
+            <button className="px-3 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => o + 0.5)}>+0,5</button>
+            <button className="px-3 min-h-[40px] rounded-full text-[13px] font-semibold" style={chip(false)} onClick={() => bits.setLrcOffset((o) => o + 2)}>+2 s</button>
           </div>
+          {(bits.lrcIsManual || bits.lrcAuto !== 0) && (
+            <div className="flex justify-center mt-2">
+              <button className="px-4 min-h-[36px] rounded-full text-[12px] font-semibold" style={chip(false)} onClick={bits.lrcIsManual ? bits.resetLrcOffset : () => bits.setLrcOffset(0)}>{bits.lrcIsManual ? 'Volver al ajuste automático' : 'Quitar ajuste automático'}</button>
+            </div>
+          )}
         </Group>
       )}
 

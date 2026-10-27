@@ -157,7 +157,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   const coverStyle = mini
     ? { left: 20, top: `calc(${SAFE_TOP} + 14px)`, width: 46, height: 46, borderRadius: 8, '--fade': '0%', boxShadow: '0 4px 14px rgba(0,0,0,.35)' }
     : T1
-      ? { left: 0, top: 0, width: '100%', height: 'min(70dvh, 800px)', borderRadius: 0, '--fade': '38%', boxShadow: 'none' }
+      ? { left: 0, top: 0, width: '100%', height: 'min(62dvh, 720px)', borderRadius: 0, '--fade': '34%', boxShadow: 'none' }
       : { left: `calc(50% - ${cw / 2}px)`, top: `calc(${SAFE_TOP} + 28px + ${Math.max(0, (col.h - bh - 36 - cw) / 2)}px)`, width: cw, height: cw, borderRadius: 20, '--fade': '0%', boxShadow: '0 24px 60px rgba(0,0,0,.45)' };
   const tr = reduced ? 'none' : `left .55s ${EASE}, top .55s ${EASE}, width .55s ${EASE}, height .55s ${EASE}, border-radius .55s ${EASE}, --fade .55s ${EASE}, box-shadow .55s`;
   const maskV = 'linear-gradient(#000 calc(100% - var(--fade)), transparent 100%)';
@@ -179,7 +179,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
         <div className="absolute z-20 overflow-hidden" style={{ ...coverStyle, transition: tr, WebkitMaskImage: maskV, maskImage: maskV, background: 'rgba(255,255,255,.1)' }} {...(inPlayer ? swipe : {})}>
           {mini
             ? <button onClick={() => setView('player')} aria-label="Volver al reproductor completo" className="block w-full h-full">{t.art ? <img src={t.art} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <Music2 className="m-auto" />}</button>
-            : (t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" draggable={false} className="w-full h-full object-cover" style={{ animation: reduced ? 'none' : 'fpFade .6s ease both' }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>)}
+            : (t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" draggable={false} className="w-full h-full object-cover" style={{ objectPosition: T1 ? 'center 30%' : 'center', animation: reduced ? 'none' : 'fpFade .6s ease both' }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>)}
         </div>
 
         {/* Cabecera compacta (letra/cola): siempre visible aunque se oculten los controles */}
@@ -198,7 +198,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
 
         {/* Bloque inferior: título (solo en el reproductor) + progreso + transporte + volumen + barra */}
         <div ref={blockRef} className="absolute inset-x-0 bottom-0 z-30 px-6"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 14px)', paddingTop: 10, transform: controlsHidden ? 'translateY(105%)' : 'none', opacity: controlsHidden ? 0 : 1, pointerEvents: controlsHidden ? 'none' : 'auto', transition: reduced ? 'none' : `transform .45s ${EASE}, opacity .3s`}}
+          style={{ paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 14px) + 22px)', paddingTop: 10, transform: controlsHidden ? 'translateY(105%)' : 'none', opacity: controlsHidden ? 0 : 1, pointerEvents: controlsHidden ? 'none' : 'auto', transition: reduced ? 'none' : `transform .45s ${EASE}, opacity .3s`}}
           aria-hidden={controlsHidden}>
           <div style={{ maxHeight: inPlayer ? 90 : 0, opacity: inPlayer ? 1 : 0, overflow: 'hidden', transition: reduced ? 'none' : `max-height .45s ${EASE}, opacity .3s`, marginBottom: inPlayer ? 14 : 0 }} aria-hidden={!inPlayer}>
             <MetaRow p={p} onMore={openMore} onArtist={goArtist} />

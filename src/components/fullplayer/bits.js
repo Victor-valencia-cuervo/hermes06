@@ -30,6 +30,21 @@ export function useAudioOutput(isPhone = true) {
   return label || (isPhone ? 'Este teléfono' : 'Este dispositivo');
 }
 
+// Ajustes de letra por canción (localStorage { [idCanción]: segundos })
+const LRC_OFF_KEY = 'h_lrc_offsets';
+function readLrcOffset(id) {
+  try { const v = JSON.parse(localStorage.getItem(LRC_OFF_KEY) || '{}')[id]; return typeof v === 'number' ? v : null; } catch { return null; }
+}
+function saveLrcOffset(id, val) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LRC_OFF_KEY) || '{}');
+    if (val == null) delete all[id]; else all[id] = val;
+    const keys = Object.keys(all);
+    if (keys.length > 300) for (const k of keys.slice(0, keys.length - 300)) delete all[k];
+    localStorage.setItem(LRC_OFF_KEY, JSON.stringify(all));
+  } catch { /* sin almacenamiento */ }
+}
+
 /** Letra, temporizador de apagado, EQ y cierre animado: lo común a los dos reproductores. */
 export function usePlayerBits(p, toast, onCloseProp) {
   const t = p.track;
@@ -37,7 +52,8 @@ export function usePlayerBits(p, toast, onCloseProp) {
   const [sleepMin, setSleepMin] = useState(0);
   const [sleepLeft, setSleepLeft] = useState(0);
   const [lrc, setLrc] = useState(null);
-  const [lrcOffset, setLrcOffset] = useState(0);
+  // Ajuste manual de la letra (se recuerda por canción). null = sin ajuste manual → se usa el automático.
+  const [lrcManual, setLrcManual] = useState(null);
   const onClose = () => { if (closing) return; setClosing(true); setTimeout(() => onCloseProp?.(), 260); };
   const closeRef = useRef(null); closeRef.current = onClose;
   useEffect(() => {
@@ -56,10 +72,10 @@ export function usePlayerBits(p, toast, onCloseProp) {
 
   useEffect(() => {
     if (!t) return undefined;
-    setLrc({ state: 'loading' }); setLrcOffset(0);
+    setLrc({ state: 'loading' }); setLrcManual(readLrcOffset(t.id));
     const ctrl = new AbortController();
     getLyrics({ artist: t.artist || '', title: t.title || '', duration: t.duration || p.time?.dur || 0, signal: ctrl.signal })
-      .then((j) => setLrc({ state: 'ok', lines: j.lines || [], plain: j.plain || '', provider: j.provider || '' }))
+      .then((j) => setLrc({ state: 'ok', lines: j.lines || [], plain: j.plain || '', provider: j.provider || '', wordSync: !!j.wordSync, duration: Number(j.duration) || 0 }))
       .catch(() => setLrc({ state: 'empty' }));
     return () => ctrl.abort();
   }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,11 +109,28 @@ export function usePlayerBits(p, toast, onCloseProp) {
     return () => clearInterval(iv);
   }, [p.playing, p.getCurrentTime, p.time?.cur, t?.id]);
 
+  // Los videos de YouTube suelen traer una intro (o escena inicial) que la canción original no tiene:
+  // la letra sincronizada para el audio "sale antes" de que se cante. Si conocemos la duración de la
+  // letra y la del video, restamos esa diferencia (solo si es razonable: 2–30 s). Se puede afinar a mano.
+  const vidDur = (p.time?.dur > 0 && isFinite(p.time.dur) ? p.time.dur : 0) || t?.duration || 0;
+  const lrcAuto = useMemo(() => {
+    if (!t || t.source !== 'YouTube' || !lrc?.duration || !vidDur) return 0;
+    const diff = vidDur - lrc.duration;
+    return diff >= 2 && diff <= 30 ? -Math.round(diff * 2) / 2 : 0;
+  }, [t?.id, t?.source, lrc?.duration, vidDur]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lrcOffset = lrcManual ?? lrcAuto;
+  const setLrcOffset = (next) => {
+    const cur = lrcManual ?? lrcAuto;
+    const v = Math.max(-30, Math.min(30, +(typeof next === 'function' ? next(cur) : next).toFixed(1)));
+    setLrcManual(v);
+    if (t) saveLrcOffset(t.id, v);
+  };
+  const resetLrcOffset = () => { setLrcManual(null); if (t) saveLrcOffset(t.id, null); };
   const lines = lrc?.lines || [];
   const effectiveTime = liveTime + lrcOffset;
   const activeIdx = useMemo(() => activeLineIndex(lines, effectiveTime), [lines, effectiveTime]);
   const hasLyrics = lrc?.state === 'ok' && (lines.length > 0 || !!lrc.plain);
-  return { closing, onClose, sleepMin, setSleepMin, sleepLeft, lrc, lines, lrcOffset, setLrcOffset, activeIdx, tReal: effectiveTime, liveTime: effectiveTime, hasLyrics };
+  return { closing, onClose, sleepMin, setSleepMin, sleepLeft, lrc, lines, lrcOffset, setLrcOffset, lrcAuto, lrcIsManual: lrcManual != null, resetLrcOffset, activeIdx, tReal: effectiveTime, liveTime: effectiveTime, hasLyrics };
 }
 
 export async function shareTrack(t, toast) {

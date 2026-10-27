@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Play, Pause, Heart, MoreVertical } from 'lucide-react';
 import Cover from './Cover';
+import Marquee from './Marquee';
 import ModeBadge from './ModeBadge';
 
 // Long-press 550ms: suficiente para no chocar con scroll, sin cansar el dedo.
@@ -84,8 +85,10 @@ export default function TrackRow({ t, p, list, onMenu, asRadio, meta, wrap }) {
           aria-label={active ? `Abrir sonando: ${t.title}` : `Reproducir ${t.title} de ${t.artist}`}
           style={{ WebkitTouchCallout: 'none' }}
         >
-          <p className={`text-[15px] ${wrap ? 'line-clamp-2 leading-snug break-words' : 'truncate'}`} style={{ color: active ? 'var(--a)' : undefined }}>{t.title}</p>
-          <p className="text-[13px] truncate flex items-center gap-1.5 min-w-0" style={{ color: active ? 'var(--a)' : 'var(--m)', opacity: active ? .85 : 1 }}><ModeBadge t={t} compact /><span className="truncate">{t.artist}</span></p>
+          {wrap
+            ? <p className="text-[15px] line-clamp-2 leading-snug break-words" style={{ color: active ? 'var(--a)' : undefined }}>{t.title}</p>
+            : <Marquee className="text-[15px]" style={{ color: active ? 'var(--a)' : undefined }}>{t.title}</Marquee>}
+          <div className="text-[13px] flex items-center gap-1.5 min-w-0" style={{ color: active ? 'var(--a)' : 'var(--m)', opacity: active ? .85 : 1 }}><ModeBadge t={t} compact /><Marquee className="flex-1">{t.artist}</Marquee></div>
         </button>
         <button className="ico-btn shrink-0 !min-w-[44px] !min-h-[44px]" onClick={toggleActive} aria-label={active && p.playing ? `Pausar ${t.title}` : `Reproducir ${t.title}`} aria-pressed={active && p.playing ? 'true' : 'false'} title={active && p.playing ? 'Pausar' : 'Reproducir'}>{active && p.playing ? <Pause size={19} /> : <Play size={19} />}</button>
         <button className="ico-btn shrink-0 !min-w-[44px] !min-h-[44px]" onClick={() => p.toggleFav(t)} aria-label={fav ? `Quitar de me gusta: ${t.title}` : `Me gusta: ${t.title}`} aria-pressed={fav ? 'true' : 'false'} title="Me gusta"><Heart size={19} fill={fav ? 'var(--a)' : 'none'} style={{ color: fav ? 'var(--a)' : undefined }} /></button>

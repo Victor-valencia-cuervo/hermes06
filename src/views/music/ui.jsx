@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, Loader2, MoreVertical, User, Shuffle } from 'lucide-react';
 import Cover from '../../components/Cover';
+import Marquee from '../../components/Marquee';
 import { fmtTime } from '../../lib/format';
 
 /** Título de sección: grande y llamativo, solo tipografía Hermes y el color actual (sin iconos). */
@@ -16,13 +17,24 @@ export function SectionTitle({ title, sub, action, className = '' }) {
   );
 }
 
-export function Section({ title, sub, action, children, className = '' }) {
+export function Section({ title, sub, action, children, className = '', glass = false }) {
   return (
     <section className={className}>
       <SectionTitle title={title} sub={sub} action={action} />
-      {children}
+      {glass ? <GlassPanel>{children}</GlassPanel> : children}
     </section>
   );
+}
+
+/** Panel de vidrio degradado (blur + brillo), el mismo efecto del modo inmersivo del reproductor. */
+export function GlassPanel({ children, className = '' }) {
+  return <div className={`glass-panel ${className}`}>{children}</div>;
+}
+
+/** Fondo de la página con la imagen difuminada, para que el vidrio tenga color que traspasar. */
+export function GlassBackdrop({ img }) {
+  if (!img) return null;
+  return <div className="glass-backdrop" aria-hidden="true"><img src={img} alt="" referrerPolicy="no-referrer" /></div>;
 }
 
 /** Carrusel horizontal (overflow): se desliza con el dedo/trackpad y en PC tiene flechas. */
@@ -69,8 +81,8 @@ export function SquareCard({ art, title, sub, onClick, spinning, badge, active, 
         </span>
         {!!badge && <span className="absolute top-1.5 left-1.5 text-[10px] font-bold px-2 py-1 rounded-full text-white max-w-[calc(100%-12px)] truncate" style={{ background: 'color-mix(in srgb, var(--a) 88%, #000)' }}>{badge}</span>}
       </div>
-      <p className="text-[15px] font-semibold mt-2 line-clamp-2 break-words min-h-[2.6em] leading-snug" title={title}>{title}</p>
-      <p className="text-[13px] line-clamp-1" style={{ color: 'var(--m)' }} title={sub}>{sub}</p>
+      <Marquee className="text-[15px] font-semibold mt-2 leading-snug">{title}</Marquee>
+      <Marquee className="text-[13px] leading-snug" style={{ color: 'var(--m)' }}>{sub}</Marquee>
     </button>
   );
 }
@@ -109,11 +121,11 @@ export function SongRow({ n, art, title, sub, duration, explicit, active, playin
         </span>
       </button>
       <button onClick={onPlay} className="flex-1 min-w-0 text-left py-1.5">
-        <p className="text-[15px] truncate flex items-center gap-1.5" style={{ color: active ? 'var(--a)' : undefined }}>
-          <span className="truncate">{title}</span>
+        <div className="flex items-center gap-1.5 min-w-0" style={{ color: active ? 'var(--a)' : undefined }}>
+          <Marquee className="text-[15px] flex-1">{title}</Marquee>
           {explicit && <span className="text-[9px] font-bold px-1 rounded shrink-0" style={{ background: 'var(--s2)', color: 'var(--m)' }}>E</span>}
-        </p>
-        <p className="text-[13px] truncate" style={{ color: 'var(--m)' }}>{sub}</p>
+        </div>
+        <Marquee className="text-[13px]" style={{ color: 'var(--m)' }}>{sub}</Marquee>
       </button>
       {extra}
       {!!duration && <span className="text-xs tabular-nums shrink-0 hidden sm:block" style={{ color: 'var(--m)' }}>{fmtTime(duration)}</span>}

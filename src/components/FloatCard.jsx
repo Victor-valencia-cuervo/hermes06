@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import Marquee from './Marquee';
 import { Play, Pause, SkipBack, SkipForward, Heart, Volume2, VolumeX, X, Loader2, Minus } from 'lucide-react';
 
 /* Tarjeta flotante estilo Spotify: arrastrable, se queda donde la dejas,
@@ -305,8 +306,8 @@ export default function FloatCard(props) {
           </button>
           <div className="texts">
             <span className="kind"><span className={`dot${kindPulse ? ' pulse' : ''}`} />{kind}</span>
-            <p className="title-1" title={title}>{title}</p>
-            <p className="title-2" title={statusText || sub}>{statusText || sub}</p>
+            <Marquee className="title-1">{title}</Marquee>
+            <Marquee className="title-2">{statusText || sub}</Marquee>
           </div>
         </div>
 

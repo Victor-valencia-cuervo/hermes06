@@ -4,6 +4,7 @@ import ModeBadge from './ModeBadge';
 import { playMode } from '../lib/playMode';
 import { fmtTime } from '../lib/format';
 import Cover from './Cover';
+import Marquee from './Marquee';
 import BlockedBar from './BlockedBar';
 import FloatCard from './FloatCard';
 import MiniBarSpotify from './MiniBarSpotify';
@@ -85,6 +86,28 @@ export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
           </div>
         );
       })}
+      {/* Historial: lo último que sonó, con su carátula */}
+      {(() => {
+        const inQ = new Set(p.queue.map((q) => q.id));
+        const seen = new Set(); const past = [];
+        for (const h of p.history || []) {
+          if (!h || h.id === t.id || inQ.has(h.id) || seen.has(h.id)) continue;
+          seen.add(h.id); past.push(h);
+          if (past.length >= 6) break;
+        }
+        if (!past.length) return null;
+        return (
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--bd)' }} aria-label="Historial">
+            <p className="text-[12px] font-semibold uppercase tracking-wide px-1 pb-1" style={{ color: 'var(--m)' }}>Historial</p>
+            {past.map((h) => (
+              <button key={`h-${h.id}`} onClick={() => p.play(h)} className="w-full flex items-center gap-2 p-1.5 rounded-xl text-left active:scale-[.99] transition" aria-label={`Reproducir ${h.title}`}>
+                <Cover src={h.art} className="w-10 h-10 !rounded-lg shrink-0" iconSize={14} alt="" />
+                <span className="flex-1 min-w-0"><Marquee className="text-[13px]">{h.title}</Marquee><Marquee className="text-[12px]" style={{ color: 'var(--m)' }}>{h.artist}</Marquee></span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 

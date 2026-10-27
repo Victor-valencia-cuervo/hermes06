@@ -9,6 +9,20 @@ import { FONT, SERIF } from './ui';
  *  - Tocar cualquier línea salta al instante a ese momento.
  *  - Tocar zona vacía muestra/oculta los controles inferiores.
  */
+/** Si la fuente solo trae la hora de cada línea, repartimos el tiempo entre sus palabras según su largo.
+ *  Así se resalta palabra por palabra SIN usar "background-clip:text" (en algunos navegadores/celulares
+ *  esa técnica dibuja un rectángulo sólido que tapa el texto de la letra). */
+function wordsOf(line, nextT) {
+  if (line.words && line.words.length) return line.words;
+  const parts = String(line.x || '♪').split(/\s+/).filter(Boolean);
+  const total = parts.reduce((a, w) => a + w.length + 1, 0) || 1;
+  const t0 = line.t ?? 0;
+  // La voz casi siempre termina antes de que empiece la siguiente línea
+  const dur = Math.max(0.6, Math.min((nextT ?? t0 + 4.5) - t0, 9)) * 0.9;
+  let acc = 0;
+  return parts.map((x) => { const t = t0 + (dur * acc) / total; acc += x.length + 1; return { x, t }; });
+}
+
 export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bottomPad = 24, fadePx = 0 }) {
   const box = useRef(null);
   const els = useRef([]);
@@ -83,15 +97,8 @@ export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bot
       {synced && lines.map((l, i) => {
         const on = i === activeIdx;
         const d = activeIdx < 0 ? 2 : Math.min(6, Math.abs(i - activeIdx));
-        const hasWords = l.words && l.words.length > 0;
 
-        // Progreso continuo de la línea cuando no hay marcas individuales por palabra
-        let lineProg = 0;
-        if (on && !hasWords) {
-          const nextT = lines[i + 1]?.t ?? ((l.t ?? 0) + 4.5);
-          const dur = Math.max(0.6, nextT - (l.t ?? 0));
-          lineProg = Math.min(100, Math.max(0, ((effectiveTime - (l.t ?? 0)) / dur) * 100));
-        }
+        const words = on ? wordsOf(l, lines[i + 1]?.t) : null;
 
         return (
           <p key={i} ref={(el) => { els.current[i] = el; }} data-nohide="1" role="button" tabIndex={0}
@@ -114,33 +121,21 @@ export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bot
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_12px_#fff] mr-3 -translate-y-0.5 align-middle shrink-0 animate-pulse" aria-hidden="true" />
             )}
 
-            {/* Sincronización palabra por palabra si está disponible */}
-            {on && hasWords ? (
+            {/* Resaltado palabra por palabra (real si la fuente lo trae, estimado si no) */}
+            {on ? (
               <span>
-                {l.words.map((w, wi) => {
+                {words.map((w, wi) => {
                   const sung = effectiveTime >= w.t;
                   return (
-                    <span key={wi} className="inline-block mr-[0.22em] transition-all duration-150"
+                    <span key={wi} className="inline-block mr-[0.22em] transition-colors duration-200"
                       style={{
                         color: sung ? '#ffffff' : 'rgba(255,255,255,0.4)',
-                        textShadow: sung ? '0 0 16px rgba(255,255,255,0.7)' : 'none',
-                        fontWeight: sung ? 800 : 600,
-                        transform: sung ? 'scale(1.03)' : 'scale(1)',
+                        textShadow: sung ? '0 0 16px rgba(255,255,255,0.55)' : 'none',
                       }}>
                       {w.x}
                     </span>
                   );
                 })}
-              </span>
-            ) : on ? (
-              /* Sincronización de línea fluida con gradiente activo que sigue el canto */
-              <span style={{
-                background: `linear-gradient(90deg, #ffffff ${lineProg.toFixed(1)}%, rgba(255,255,255,0.38) ${Math.min(100, lineProg + 6).toFixed(1)}%)`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                textShadow: '0 0 18px rgba(255,255,255,0.35)',
-              }}>
-                {l.x || '♪'}
               </span>
             ) : (
               <span>{l.x || '♪'}</span>
@@ -162,13 +157,16 @@ export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bot
         </p>
       )}
 
-      {/* Botón flotante para reanudar el seguimiento automático si el usuario se desplazó */}
+      {/* Botón para reanudar el seguimiento automático si el usuario se desplazó */}
       {userBrowsing && synced && (
-        <button onClick={resumeSync}
-          className="fixed bottom-28 right-6 z-40 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-white/20 hover:bg-white/30 text-white backdrop-blur shadow-lg active:scale-95 transition-all">
-          <RotateCw size={13} className="animate-spin" />
-          Sincronizar
-        </button>
+        <div className="sticky flex justify-end pointer-events-none" style={{ bottom: Math.max(12, bottomPad - 36), height: 0 }}>
+          <button onClick={resumeSync}
+            className="pointer-events-auto -translate-y-full inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg active:scale-95 transition-all"
+            style={{ background: 'rgba(30,30,34,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.18)' }}>
+            <RotateCw size={13} />
+            Sincronizar
+          </button>
+        </div>
       )}
     </div>
   );

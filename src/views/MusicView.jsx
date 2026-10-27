@@ -260,6 +260,12 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   }, [myId]);
   const [searchHist, setSearchHist] = useStore('h_search_hist', []);
   const pls = usePlaylists(toast);
+  // Lo último que oíste (sin repetir) para el inicio de la búsqueda
+  const recentTracks = useMemo(() => {
+    const seen = new Set(); const out = [];
+    for (const t of p.history || []) { if (!t || seen.has(t.id)) continue; seen.add(t.id); out.push(t); if (out.length >= 24) break; }
+    return out;
+  }, [p.history]);
 
   // Predicciones al escribir: en modo local filtra tus archivos;
   // en YouTube, remotas primero e historial como repliegue.
@@ -840,6 +846,9 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
           onDelHist={(s) => setSearchHist((h) => (h || []).filter((x) => x !== s))}
           onClearHist={() => setSearchHist([])}
           onTile={(tl) => (tl.kind === 'cat' ? openCategory(tl.query) : goSearch(tl.query))}
+          tracks={recentTracks} trending={charts || []}
+          onPlay={(t, list) => (playTrack ? playTrack(t, list) : p.play(t, list))}
+          onArtist={(name) => { setQ(name); goSearch(name); }}
         />
       )}
 
@@ -942,7 +951,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
               </button>
             }
           />
-          <div className="card">
+          <div className="glass-panel !p-4">
             <div className="flex items-center gap-2 mb-2">
               {renaming ? (
                 <form onSubmit={(e) => { e.preventDefault(); pls.rename(sel.id, renameVal); setRenaming(false); }} className="flex gap-1 flex-1">

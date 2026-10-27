@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Star, ChevronRight } from 'lucide-react';
-import { Section, Shelf, SquareCard, ArtistBubble, SongRow, ShelfSkeleton, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
+import { GlassBackdrop, Section, Shelf, SquareCard, ArtistBubble, SongRow, ShelfSkeleton, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
 import Cover from '../../components/Cover';
 import useArtColors from '../../hooks/useArtColors';
 import { getArtistBundle, artistPath, albumPath, compactNum } from '../../services/catalog';
@@ -43,7 +43,8 @@ export default function ArtistPage({ refId, ctx }) {
   const follow = () => { if (!a) return; const on = toggleFollow(a); setFol(on); toast?.(on ? `Sigues a ${a.name}` : `Dejaste de seguir a ${a.name}`); };
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-7 relative isolate">
+      <GlassBackdrop img={a?.art} />
       <ImmersivePage img={a?.art} alt={a?.name} tint={tint} onBack={onBack}>
         <div className="text-center">
           <h2 className="text-[2.6rem] sm:text-5xl font-bold leading-[1.05] line-clamp-2" style={{ textShadow: '0 2px 14px rgba(0,0,0,.35)' }}>{a?.name || '…'}</h2>
@@ -61,7 +62,7 @@ export default function ArtistPage({ refId, ctx }) {
 
         {newest && (
           <button onClick={() => nav(albumPath(newest))} className="mt-6 w-full flex items-center gap-4 rounded-[1.75rem] p-3.5 text-left active:scale-[.99] transition"
-            style={{ background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.16)' }}>
+            style={{ background: 'linear-gradient(155deg, rgba(255,255,255,.18), rgba(255,255,255,.06))', border: '1px solid rgba(255,255,255,.18)', backdropFilter: 'blur(20px) saturate(1.5)', WebkitBackdropFilter: 'blur(20px) saturate(1.5)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,.22), 0 16px 40px -22px rgba(0,0,0,.6)' }}>
             <Cover src={newest.art} className="w-20 h-20 rounded-xl shrink-0" alt={newest.title} />
             <span className="flex-1 min-w-0">
               <span className="block text-sm" style={{ color: 'var(--m)' }}>{newest.type === 'single' ? 'Sencillo' : newest.type === 'ep' ? 'EP' : 'Álbum'}{newest.year ? ` • ${newest.year}` : ''}</span>
@@ -73,7 +74,7 @@ export default function ArtistPage({ refId, ctx }) {
         )}
       </ImmersivePage>
 
-      <Section title="Canciones principales">
+      <Section title="Canciones principales" glass>
         {data === undefined ? <RowsSkeleton /> : (
           <>
             <div>

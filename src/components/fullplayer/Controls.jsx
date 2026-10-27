@@ -1,6 +1,7 @@
 import { Loader2, Volume1, Volume2, VolumeX, MessageSquareQuote, Airplay, ListMusic, Star, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { fmtTime } from '../../lib/format';
+import Marquee from '../Marquee';
 import { Slider, IconRew, IconFwd, IconPlay, IconPause, GlassBtn } from './ui';
 
 export const sourceLabel = (t) => (t?.source === 'Local' ? 'Local' : t?.source === 'Audius' ? 'Audius' : t?.source === 'YouTube' ? 'YouTube' : (t?.source || ''));
@@ -75,8 +76,10 @@ export function MetaRow({ p, onMore, onArtist, compact }) {
   return (
     <div className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
-        <p className={`${compact ? 'text-[15px]' : 'text-[22px]'} font-bold leading-tight truncate`} title={t.title}>{t.title}</p>
-        <button onClick={onArtist} className={`${compact ? 'text-[13px]' : 'text-[20px]'} block max-w-full truncate text-left leading-snug`} style={{ color: 'rgba(255,255,255,.66)' }} title={`Ver a ${t.artist}`}>{t.artist}</button>
+        <Marquee className={`${compact ? 'text-[15px]' : 'text-[22px]'} font-bold leading-tight`}>{t.title}</Marquee>
+        <button onClick={onArtist} className="block w-full text-left leading-snug" style={{ color: 'rgba(255,255,255,.66)' }} title={`Ver a ${t.artist}`}>
+          <Marquee className={`${compact ? 'text-[13px]' : 'text-[20px]'}`}>{t.artist}</Marquee>
+        </button>
       </div>
       <GlassBtn label={fav ? 'Quitar de favoritos' : 'Añadir a favoritos'} pressed={!!fav} onClick={() => p.toggleFav(t)} size={compact ? 32 : 36}><Star size={compact ? 16 : 18} fill={fav ? 'currentColor' : 'none'} /></GlassBtn>
       <GlassBtn label="Más opciones de la canción" onClick={onMore} size={compact ? 32 : 36}><MoreHorizontal size={compact ? 16 : 18} /></GlassBtn>

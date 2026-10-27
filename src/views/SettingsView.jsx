@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Moon, Sun, Disc3, Cloud, CloudOff, CloudRain, LogIn, LogOut, Download, AudioLines, Music2, Check, Trash2 } from 'lucide-react';
+import { Moon, Sun, Disc3, Cloud, CloudOff, CloudRain, LogIn, LogOut, Download, AudioLines, Music2, Check, Trash2, Maximize2 } from 'lucide-react';
 import Title from '../components/Title';
 import CloudStatus from '../components/CloudStatus';
 import { ACCENTS } from '../data/constants';
@@ -21,6 +21,7 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
   const [lyricsFont, setLyricsFont] = useStore('h_lyrics_font', 'apple'); // apple (sans) | hermes (serif de Hermes)
   const [autoCover, setAutoCover] = useStore('h_auto_cover', true);
   const [miniTheme, setMiniTheme] = useStore('h_mini_theme', 'float'); // float | bar
+  const [fsBtn, setFsBtn] = useStore('h_fs_btn', true); // botón de pantalla completa en la cabecera
   const checkLB = async () => {
     if (!lbToken.trim()) { toast?.('Pega tu token ListenBrainz primero'); return; }
     setLbState('checking');
@@ -107,6 +108,15 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
       <div className="card">
         <p className="text-sm mb-3">Tu nombre</p>
         <input className="inp" value={name} placeholder="Sin nombre" onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="card flex items-center justify-between gap-3">
+        <span className="flex items-center gap-3 text-sm">
+          <Maximize2 size={18} style={{ color: 'var(--a)' }} />
+          <span>Botón de pantalla completa<span className="block text-[11px]" style={{ color: 'var(--m)' }}>Muéstralo u ocúltalo en la barra de arriba</span></span>
+        </span>
+        <button onClick={() => { setFsBtn(!fsBtn); toast?.(fsBtn ? 'Botón de pantalla completa oculto' : 'Botón de pantalla completa activo'); }} role="switch" aria-checked={!!fsBtn} aria-label="Botón de pantalla completa" className="w-12 h-7 rounded-full relative transition-colors shrink-0" style={{ background: fsBtn ? 'var(--a)' : 'var(--s2)', border: '1px solid var(--bd)' }}>
+          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${fsBtn ? 'left-6' : 'left-0.5'}`} />
+        </button>
       </div>
       {setAutoLand && (
         <div className="card flex items-center justify-between gap-3">

@@ -119,9 +119,10 @@ export default function usePlayer(toast, local = null) {
     try { ytRef.current?.setRate?.(r); } catch {}
   }, [rate, track]);
 
-  // Progreso: actualiza con resolución suave (~0.25s) para sincronización exacta de letras y barra
+  // Progreso: solo actualiza el estado cuando cambia el segundo (antes eran 2-4 renders por
+  // segundo de toda la app, que en celulares lentos se notaba al abrir canciones).
   const tick = useCallback((cur, dur) => {
-    setTime((prev) => (Math.abs(prev.cur - (cur || 0)) < 0.25 && prev.dur === (dur || 0) ? prev : { cur: cur || 0, dur: dur || 0 }));
+    setTime((prev) => (Math.floor(prev.cur) === Math.floor(cur || 0) && prev.dur === (dur || 0) ? prev : { cur: cur || 0, dur: dur || 0 }));
   }, []);
 
   const normalizeTrack = useCallback((t) => {
@@ -848,7 +849,7 @@ export default function usePlayer(toast, local = null) {
   }, [track, volume, muted]);
 
   // --- sondeo de progreso para temas YouTube (el embed no emite timeupdate) ---
-  // Sondeo a 250ms para sincronización exacta de letra y barra de reproducción
+  // Cada 1s (antes 500ms) y sin re-aplicar el mismo volumen: la mitad de CPU.
   useEffect(() => {
     if (track?.source !== 'YouTube') return;
     let lastApplied = -1;
@@ -871,7 +872,7 @@ export default function usePlayer(toast, local = null) {
           }
         } else lastApplied = -1;
       } catch {}
-    }, 250);
+    }, 1000);
     return () => clearInterval(iv);
   }, [track, tick, volume, muted]);
 

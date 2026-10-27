@@ -31,8 +31,10 @@ function Hero({ p, feat, onPlayFeat, resolving }) {
   const go = () => { if (live) p.toggle(); else onPlayFeat(feat); };
   return (
     <section className="relative overflow-hidden rounded-[2rem] min-h-[13.5rem] sm:min-h-[16rem] flex items-end text-white" style={{ background: '#111' }}>
-      {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(120deg, color-mix(in srgb, var(--a) 40%, transparent), rgba(0,0,0,.72))' }} />
+      {/* Carátula de la canción de fondo: se ve la imagen (poco desenfoque) y un degradado oscuro a la izquierda para leer el texto */}
+      {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-110 blur-[3px] opacity-95" />}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 48%, color-mix(in srgb, var(--a) 22%, rgba(0,0,0,.18)) 100%)' }} />
+      <div className="absolute inset-0 pointer-events-none rounded-[2rem]" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.12)' }} />
       <div className="relative w-full p-5 sm:p-7 flex items-center gap-5">
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-bold tracking-[0.25em] uppercase opacity-80 flex items-center gap-2">
@@ -49,7 +51,7 @@ function Hero({ p, feat, onPlayFeat, resolving }) {
             {live && <button onClick={() => p.openFull?.()} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border border-white/35 backdrop-blur active:scale-95 transition-transform">Abrir reproductor</button>}
           </div>
         </div>
-        <Cover src={t.art} className={`hidden sm:block w-40 h-40 rounded-3xl shadow-2xl shrink-0 ${live && p.playing ? 'breathe' : ''}`} iconSize={40} />
+        <Cover src={t.art} className={`w-24 h-24 sm:w-40 sm:h-40 rounded-2xl sm:rounded-3xl shadow-2xl shrink-0 ${live && p.playing ? 'breathe' : ''}`} iconSize={34} />
       </div>
     </section>
   );

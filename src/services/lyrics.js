@@ -225,6 +225,7 @@ async function fromLRCLIB(artist, title, durationSec, signal, queryFallback = ''
     lines: best.syncedLyrics ? parseLRC(best.syncedLyrics) : [],
     plain: best.plainLyrics || '',
     wordSync: (best.syncedLyrics || '').includes('<'),
+    duration: best.duration,
   };
 }
 

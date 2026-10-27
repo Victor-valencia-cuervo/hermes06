@@ -3,6 +3,7 @@ import { Shuffle, Repeat, Repeat1, Radio, X, GripVertical, Plus, Search, Trash2,
 import { contextOf } from '../../lib/playContext';
 import { fmtTime } from '../../lib/format';
 import Cover from '../Cover';
+import Marquee from '../Marquee';
 
 const ROW_H = 60;
 
@@ -102,7 +103,7 @@ export default function QueuePane({ p, toast, onEmptyTap, bottomPad = 24, fadePx
             <button key={`${x.id}-r${i}`} data-nohide="1" onClick={() => (recentFromQueue ? p.playAt(i) : p.play(x))}
               className="w-full flex items-center gap-3 py-1.5 text-left active:scale-[.99] transition opacity-70 hover:opacity-100" style={{ minHeight: ROW_H }}>
               <Cover src={x.art} alt="" className="w-11 h-11 rounded-md" iconSize={16} />
-              <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold truncate">{x.title}</span><span className="block text-[13px] text-white/60 truncate">{x.artist}</span></span>
+              <span className="min-w-0 flex-1"><Marquee className="text-[15px] font-semibold">{x.title}</Marquee><Marquee className="text-[13px] text-white/60">{x.artist}</Marquee></span>
             </button>
           ))}
         </section>
@@ -113,7 +114,7 @@ export default function QueuePane({ p, toast, onEmptyTap, bottomPad = 24, fadePx
           <p className="text-[12px] font-semibold uppercase tracking-wide text-white/55 mb-1">Reproduciendo</p>
           <div className="flex items-center gap-3 p-2 -mx-2 rounded-2xl" style={{ background: 'rgba(255,255,255,.16)', minHeight: ROW_H }} data-nohide="1" aria-current="true">
             <Cover src={t.art} alt="" className="w-11 h-11 rounded-md" iconSize={16} />
-            <span className="min-w-0 flex-1"><span className="block text-[15px] font-bold truncate">{t.title}</span><span className="block text-[13px] text-white/70 truncate">{t.artist}</span></span>
+            <span className="min-w-0 flex-1"><Marquee className="text-[15px] font-bold">{t.title}</Marquee><Marquee className="text-[13px] text-white/70">{t.artist}</Marquee></span>
             <EqBars playing={p.playing} />
           </div>
         </section>
@@ -145,7 +146,7 @@ export default function QueuePane({ p, toast, onEmptyTap, bottomPad = 24, fadePx
             {pool.map((x) => (
               <div key={x.id} className="flex items-center gap-2 py-1">
                 <Cover src={x.art} alt="" className="w-10 h-10 rounded-md" iconSize={14} />
-                <span className="min-w-0 flex-1"><span className="block text-[14px] font-semibold truncate">{x.title}</span><span className="block text-[12px] text-white/60 truncate">{x.artist}</span></span>
+                <span className="min-w-0 flex-1"><Marquee className="text-[14px] font-semibold">{x.title}</Marquee><Marquee className="text-[12px] text-white/60">{x.artist}</Marquee></span>
                 {x.inQ ? <span className="text-[11px] text-white/55 inline-flex items-center gap-1"><Check size={12} /> En cola</span> : (
                   <>
                     <button onClick={() => p.addNext(x)} className="px-2.5 h-8 rounded-full text-[11px] font-semibold" style={chip(false)}>Siguiente</button>
@@ -167,7 +168,7 @@ export default function QueuePane({ p, toast, onEmptyTap, bottomPad = 24, fadePx
               <button onPointerDown={(e) => startDrag(e, i)} aria-label={`Reordenar ${x.title}`} title="Arrastra para reordenar" className="w-8 h-11 grid place-items-center text-white/50 touch-none cursor-grab active:cursor-grabbing"><GripVertical size={18} /></button>
               <button onClick={() => p.playAt(idx + 1 + i)} className="flex-1 min-w-0 flex items-center gap-3 py-1.5 text-left" aria-label={`Reproducir ${x.title}`}>
                 <Cover src={x.art} alt="" className="w-11 h-11 rounded-md" iconSize={16} />
-                <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold truncate">{x.title}</span><span className="block text-[13px] text-white/60 truncate">{x.artist}</span></span>
+                <span className="min-w-0 flex-1"><Marquee className="text-[15px] font-semibold">{x.title}</Marquee><Marquee className="text-[13px] text-white/60">{x.artist}</Marquee></span>
               </button>
               <button onClick={() => p.removeAt(idx + 1 + i)} aria-label={`Quitar ${x.title} de la cola`} className="w-10 h-10 grid place-items-center text-white/60 active:scale-90 transition"><X size={17} /></button>
             </div>

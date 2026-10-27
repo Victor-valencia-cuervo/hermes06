@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, Plus, ChevronDown, SkipBack, SkipForward, Heart, Volume2, VolumeX } from 'lucide-react';
 import Cover from './Cover';
+import Marquee from './Marquee';
 import useArtColors from '../hooks/useArtColors';
 import { fmtTime } from '../lib/format';
 
@@ -65,8 +66,8 @@ export default function MiniBarSpotify({ p, onOpenFull, onMin, queuePop }) {
           <button onClick={() => onOpenFull?.()} className="flex items-center gap-2.5 flex-1 min-w-0 text-left rounded-xl min-h-[52px] px-1" aria-label={`Abrir sonando: ${t.title} de ${t.artist}`}>
             <Cover src={t.art} className="w-11 h-11 !rounded-xl shrink-0" iconSize={15} alt={t.title} />
             <span className="flex-1 min-w-0">
-              <span className="block text-[14px] font-semibold text-white truncate leading-tight">{t.title}</span>
-              <span className="block text-[12px] truncate leading-tight" style={{ color: 'rgba(255,255,255,.72)' }}>{t.artist}</span>
+              <Marquee className="text-[14px] font-semibold text-white leading-tight">{t.title}</Marquee>
+              <Marquee className="text-[12px] leading-tight" style={{ color: 'rgba(255,255,255,.72)' }}>{t.artist}</Marquee>
             </span>
           </button>
           <button className="text-white/85 min-w-[44px] min-h-[44px] grid place-items-center" onClick={() => setOpen((o) => !o)} aria-label={open ? 'Cerrar ajustes y cola' : 'Abrir ajustes y cola'} aria-expanded={open ? 'true' : 'false'} title="Ajustes y cola"

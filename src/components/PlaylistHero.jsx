@@ -6,8 +6,9 @@ export default function PlaylistHero({ art, icon, eyebrow, title, meta, descript
   return (
     <section className="relative overflow-hidden rounded-[2rem] min-h-[12rem] flex items-end text-white"
       style={{ background: '#141416' }}>
-      {art && <img src={art} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(120deg, color-mix(in srgb, var(--a) 42%, transparent), rgba(0,0,0,.74))' }} />
+      {art && <img src={art} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-90" />}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(120deg, color-mix(in srgb, var(--a) 38%, transparent), rgba(0,0,0,.66))' }} />
+      <div className="absolute inset-0 pointer-events-none rounded-[2rem]" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,.16), transparent 42%)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.28)' }} />
       <div className="relative w-full p-5 flex items-center gap-4">
         {art
           ? <Cover src={art} className="w-24 h-24 rounded-3xl shadow-2xl shrink-0" iconSize={30} />

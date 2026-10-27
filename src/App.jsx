@@ -193,6 +193,8 @@ export default function App() {
   // Pantalla completa: oculta la barra del sistema (hora/wifi) donde el
   // dispositivo lo permite. Requiere gesto del usuario (el botón).
   const [fs, setFs] = useState(false);
+  // Botón de pantalla completa de la cabecera: se activa/desactiva desde Ajustes.
+  const [fsBtn] = useStore('h_fs_btn', true);
   useEffect(() => {
     const onFs = () => setFs(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFs);
@@ -321,16 +323,18 @@ export default function App() {
               </button>
             )}
             <button className="ico-btn" onClick={() => setPets({ ...pets, on: !pets.on })} aria-pressed={pets.on} aria-label={pets.on ? 'Ocultar mascotas' : 'Mostrar mascotas'} style={{ color: pets.on ? 'var(--a)' : undefined }}><PawPrint size={20} /></button>
-            <button className="ico-btn" onClick={toggleFs} aria-label={fs ? 'Salir de pantalla completa' : 'Pantalla completa'}>
-              {fs ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-            </button>
+            {fsBtn && (
+              <button className="ico-btn" onClick={toggleFs} aria-label={fs ? 'Salir de pantalla completa' : 'Pantalla completa'} title={fs ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+                {fs ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+              </button>
+            )}
           </span>}
         </header>
         <main ref={mainRef} className={`flex-1 overflow-y-auto ${view === 'chat' ? 'px-2 lg:px-6 py-2 lg:py-6' : 'px-5 lg:px-10 py-4 lg:py-10'} ${player.track && radio.current ? 'pb-72' : player.track || radio.current ? 'pb-36' : 'pb-24 lg:pb-10'}`}>
           <ErrorBoundary label="contenido" key={view}>
             <Suspense fallback={<ViewFallback />}>
               <div className={`${view === 'chat' ? 'max-w-none' : 'max-w-3xl lg:max-w-5xl'} mx-auto fin space-y-4`} key={view}>
-                {subScreen && <button className="hidden lg:inline-flex ico-btn !w-auto gap-2 px-3 text-sm" onClick={() => goBack(backFallback)} aria-label="Volver"><ArrowLeft size={18} /> Volver</button>}
+                {subScreen && <div className="hidden lg:block"><button className="ico-btn !w-auto gap-2 px-3 text-sm" onClick={() => goBack(backFallback)} aria-label="Volver"><ArrowLeft size={18} /> Volver</button></div>}
                 {viewsEl}
               </div>
             </Suspense>
