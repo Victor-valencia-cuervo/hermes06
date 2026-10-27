@@ -36,9 +36,10 @@ export function markBlockedVideo(videoId) {
   try { localStorage.setItem(BLOCK_KEY, JSON.stringify([...blockedIds].slice(-500))); } catch { /* noop */ }
 }
 
-async function fetchTimeout(url, ms = 12000) {
+async function fetchTimeout(url, ms = 12000, ext = null) {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), ms);
+  if (ext) { if (ext.aborted) c.abort(); else ext.addEventListener('abort', () => c.abort(), { once: true }); }
   try {
     const r = await fetch(url, { signal: c.signal });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -70,59 +71,66 @@ export async function getSuggestions(text) {
   return settled.find((r) => r?.length) || [];
 }
 
-/** Instancia viva en memoria (evita re-probar en cada búsqueda). */
+/** Instancia viva en memoria (la que respondió última vez; se prueba primero). */
 let memInstance = null; // { base, at }
-let instanceInflight = null; // carrera en curso compartida (evita N carreras × 10 en el arranque)
 
 /**
- * Encuentra una instancia viva: carrera en paralelo, gana la primera
- * que responda (máx ~4s) en vez de probar una por una. En dispositivos
- * nuevos (sin instancia guardada) esto recorta de ~1min a segundos.
- * Deduplica: todas las búsquedas del arranque comparten la misma carrera.
+ * Pide `path` a las instancias de Piped con una carrera ESCALONADA ("hedged"):
+ * salen 2 peticiones de inmediato (la última que funcionó + la siguiente) y una más
+ * cada 700 ms, o en cuanto una falla. Gana la primera respuesta válida y cancela el resto.
+ * Es la petición real (no un "ping" previo), así que no hay doble viaje: tras días sin abrir
+ * la app, aunque la instancia guardada haya muerto, la búsqueda llega en ~1-3 s y no en ~10 s.
  */
-export async function workingInstance() {
-  if (memInstance && Date.now() - memInstance.at < 5 * 60 * 1000) return memInstance.base;
-  // La que funcionó la última vez suele seguir viva: se prueba sola primero (2s) en vez de
-  // lanzar 10 peticiones a la vez, que en celulares lentos es justo lo que más tarda.
-  const last = savedInstance();
-  if (last) {
-    try {
-      await fetchTimeout(`${last}/search?q=hola&filter=videos`, 2000);
-      memInstance = { base: last, at: Date.now() };
-      return last;
-    } catch { /* se corre la carrera normal */ }
-  }
-  if (instanceInflight) return instanceInflight;
-  const ordered = [...new Set([savedInstance(), ...INSTANCES].filter(Boolean))];
-  instanceInflight = new Promise((res) => {
-    let pending = ordered.length;
-    let done = false;
-    if (!pending) { res(null); return; }
-    ordered.forEach((base) => {
-      fetchTimeout(`${base}/search?q=hola&filter=videos`, 4000).then(
-        () => { if (!done) { done = true; res(base); } },
-        () => { if (!done && --pending === 0) res(null); },
+function pipedGet(path, { ms = 7000, accept = () => true } = {}) {
+  const ordered = [...new Set([memInstance?.base, savedInstance(), ...INSTANCES].filter(Boolean))];
+  return new Promise((resolve, reject) => {
+    let idx = 0; let failed = 0; let done = false;
+    const timers = []; const ctrls = [];
+    const finish = (fn, v) => {
+      if (done) return; done = true;
+      timers.forEach(clearTimeout); ctrls.forEach((c) => c.abort());
+      fn(v);
+    };
+    const onFail = () => {
+      if (done) return;
+      if (++failed >= ordered.length) finish(reject, new Error('YouTube no responde (Piped caído)'));
+      else launch();
+    };
+    function launch() {
+      if (done || idx >= ordered.length) return;
+      const base = ordered[idx++];
+      const c = new AbortController(); ctrls.push(c);
+      fetchTimeout(`${base}${path}`, ms, c.signal).then(
+        (d) => {
+          if (done) return;
+          if (accept(d)) { memInstance = { base, at: Date.now() }; saveInstance(base); finish(resolve, { base, data: d }); }
+          else onFail();
+        },
+        () => onFail(),
       );
-    });
-  }).finally(() => { instanceInflight = null; });
-  const found = await instanceInflight;
-  if (!found) throw new Error('YouTube no responde (Piped caído)');
-  memInstance = { base: found, at: Date.now() };
-  saveInstance(found);
-  return found;
+      if (idx < ordered.length) timers.push(setTimeout(launch, 700));
+    }
+    if (!ordered.length) { finish(reject, new Error('Sin instancias de YouTube')); return; }
+    launch(); launch();
+  });
+}
+const validSearch = (d) => Array.isArray(d?.items) || Array.isArray(d);
+
+/** Encuentra una instancia viva (compat): carrera sobre una búsqueda ligera. */
+export async function workingInstance() {
+  const { base } = await pipedGet('/search?q=musica&filter=videos', { accept: validSearch });
+  return base;
 }
 
-/** Precalienta en fondo al abrir la app: instancia + API sugerencias, sin bloquear. */
+let prewarmAt = 0;
+/** Precalienta en fondo desde el arranque de la app: instancia viva + API de sugerencias. */
 export function prewarmYouTube() {
   try {
+    if (Date.now() - prewarmAt < 60 * 1000) return;
+    prewarmAt = Date.now();
     workingInstance().catch(() => {});
     getSuggestions('musica').catch(() => {});
   } catch { /* noop */ }
-}
-
-/** Olvida la instancia en memoria (para reintentar con otra al fallar). */
-function dropInstance() {
-  memInstance = null;
 }
 
 const thumbOf = (th) => {
@@ -190,21 +198,11 @@ export function searchYouTube(term, limit = 15) {
   return p;
 }
 async function searchYouTubeRaw(term, limit = 15) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const base = await workingInstance();
-      const d = await fetchTimeout(`${base}/search?q=${encodeURIComponent(term)}&filter=videos`, 12000);
-      return ((d.items || d || []).slice(0, limit))
-        .map(fromPiped)
-        .filter(Boolean)
-        .filter((t) => !blockedIds.has(t.videoId)); // fuera los que ya se sabe que bloquean embed
-    } catch (e) {
-      // Si la instancia en memoria murió, se olvida y se corre otra carrera.
-      dropInstance();
-      if (attempt === 1) throw e;
-    }
-  }
-  return [];
+  const { data } = await pipedGet(`/search?q=${encodeURIComponent(term)}&filter=videos`, { ms: 8000, accept: validSearch });
+  return ((data.items || data || []).slice(0, limit))
+    .map(fromPiped)
+    .filter(Boolean)
+    .filter((t) => !blockedIds.has(t.videoId)); // fuera los que ya se sabe que bloquean embed
 }
 
 // --- Ranking "oficial" ---
@@ -330,10 +328,12 @@ export async function resolveOfficial(artist, title, n = 8) {
   if (resolveCache.has(key)) return resolveCache.get(key);
   const items = await searchYouTube(`${artist} ${title} official audio`, n);
   const ranked = rankCandidates(items, { artist, title });
-  let best = ranked.find((t) => !blockedIds.has(t.videoId)) || null;
-  for (const t of ranked.slice(0, 4)) {
-    if (blockedIds.has(t.videoId)) continue;
-    if (await verifyVideo(t.videoId)) { best = t; break; }
+  const top = ranked.filter((t) => !blockedIds.has(t.videoId)).slice(0, 3);
+  let best = top[0] || null;
+  if (top.length > 1) {
+    // En paralelo (antes uno por uno, hasta 3.5 s cada uno): gana el mejor candidato que exista.
+    const oks = await Promise.all(top.map((t) => verifyVideo(t.videoId)));
+    best = top.find((_, i) => oks[i]) || best;
   }
   if (best) resolveCache.set(key, best);
   return best;

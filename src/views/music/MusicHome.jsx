@@ -72,6 +72,16 @@ export default function MusicHome({ h }) {
     return [...first.entries()].sort((a, b) => (count.get(b[0]) - count.get(a[0]))).map(([, t]) => t).slice(0, 10);
   }, [p.history]);
 
+  // Historial en columnas de 5 temas hacia abajo, deslizable a derecha e izquierda
+  const historyCols = useMemo(() => {
+    const list = (p.history || []).slice(0, 40);
+    const cols = [];
+    for (let i = 0; i < list.length; i += 5) {
+      cols.push(list.slice(i, i + 5));
+    }
+    return cols;
+  }, [p.history]);
+
   // ---- Sin repetir entre secciones de descubrimiento ----
   const used = new Set();
   const take = (list, n) => {
@@ -154,14 +164,19 @@ export default function MusicHome({ h }) {
 
       {/* ===== Historial ===== */}
       {(p.history || []).length > 0 && (
-        <Section title="Historial" sub="Lo último que escuchaste" action={
-          <button className="text-xs px-3 py-2 rounded-full" style={{ background: 'var(--s2)', color: 'var(--m)' }} onClick={() => p.clearHistory()}>Limpiar</button>
+        <Section title="Historial" sub={`${(p.history || []).length} canciones · Desliza para explorar`} action={
+          <button className="text-xs px-3 py-2 rounded-full transition-transform active:scale-95" style={{ background: 'var(--s2)', color: 'var(--m)' }} onClick={() => p.clearHistory()}>Limpiar</button>
         }>
-          <div className="card !p-2">
-            {(p.history || []).slice(0, 6).map((t) => (
-              <SongRow key={`${t.id}-${t.at}`} art={t.art} title={t.title} sub={`${t.artist}${t.at ? ` · ${ago(t.at)}` : ''}`}
-                active={p.track?.id === t.id} playing={p.playing} loading={resolvingId === t.id}
-                onPlay={() => play(t)} onMenu={() => openMenu(t, p.history, { kind: 'yt' })} />
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 pt-0.5 -mx-5 px-5 sm:mx-0 sm:px-0"
+            style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            {historyCols.map((colSongs, colIdx) => (
+              <div key={colIdx} className="w-[88vw] max-w-[360px] shrink-0 snap-start card !p-2 space-y-0.5">
+                {colSongs.map((t) => (
+                  <SongRow key={`${t.id}-${t.at || ''}-${colIdx}`} art={t.art} title={t.title} sub={`${t.artist}${t.at ? ` · ${ago(t.at)}` : ''}`}
+                    active={p.track?.id === t.id} playing={p.playing} loading={resolvingId === t.id}
+                    onPlay={() => play(t)} onMenu={() => openMenu(t, p.history, { kind: 'yt' })} />
+                ))}
+              </div>
             ))}
           </div>
         </Section>

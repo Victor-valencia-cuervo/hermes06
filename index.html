@@ -79,26 +79,39 @@
       <button onclick="try{localStorage.clear()}catch(e){};location.reload()" style="margin-top:1rem;padding:.6rem 1.2rem;border-radius:.8rem;border:0;background:#6366f1;color:#fff">Reintentar limpio</button>
     </div>
     <script>
+      // Red de seguridad de ARRANQUE: solo avisa si la app de verdad no llegó a montar.
+      // Una vez que React pintó, nada de esto vuelve a mostrarse (antes cualquier promesa
+      // rechazada, como un fetch fallido, hacía aparecer este cartel al hacer scroll).
       (function () {
         var errs = [];
+        var root = document.getElementById('root');
+        var boot = document.getElementById('boot');
+        function mounted() { try { return !!(root && root.hasChildNodes()); } catch (e) { return true; } }
+        function hide() { try { if (boot) boot.style.display = 'none'; } catch (e) {} }
         function show(msg) {
           try {
+            if (mounted()) return;
             errs.push(String(msg).slice(0, 300));
-            var b = document.getElementById('boot');
             var p = document.getElementById('boot-err');
-            if (b) b.style.display = 'block';
+            if (boot) boot.style.display = 'block';
             if (p) { p.style.display = 'block'; p.textContent = errs.slice(-4).join('\n---\n'); }
           } catch (e) {}
         }
+        // Cuando la app monta, el cartel (si estaba) se esconde y se apaga todo.
+        if (root && 'MutationObserver' in window) {
+          var obs = new MutationObserver(function () {
+            if (root.hasChildNodes()) { hide(); obs.disconnect(); }
+          });
+          obs.observe(root, { childList: true });
+        }
         window.addEventListener('error', function (e) {
+          if (mounted()) return;
           if (e && (e.filename || e.message)) show('Error: ' + (e.message || '') + ' @' + (e.filename || '').split('/').pop() + ':' + (e.lineno || '?'));
         }, true);
-        window.addEventListener('unhandledrejection', function (e) {
-          show('Promesa: ' + String((e && e.reason && (e.reason.message || e.reason)) || e).slice(0, 200));
-        });
+        // Promesas rechazadas (red caída, Piped sin responder…) son normales: no se muestran.
         setTimeout(function () {
-          try { if (!document.getElementById('root').hasChildNodes()) show('La app no montó (root vacío tras 9s)'); } catch (e) {}
-        }, 9000);
+          try { if (!mounted()) show('La app no montó (root vacío tras 25s). Revisa tu conexión.'); } catch (e) {}
+        }, 25000);
       })();
     </script>
     <noscript><main style="max-width:42rem;margin:4rem auto;padding:0 1.5rem;font-family:system-ui"><h1>Hermes – Panel personal</h1><p>Hermes es tu panel personal con clima, música, radios, recordatorios, notas y atajos. Activa JavaScript para usar la app.</p></main></noscript>

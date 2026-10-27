@@ -8,7 +8,7 @@ import { markBlockedVideo, getRelated, searchYouTube } from '../services/youtube
 import { getYTMix } from '../services/ytmix';
 import { submitListen } from '../services/scrobble';
 import { getOriginalCover } from '../services/covers';
-import { prefersYT, setPrefYT } from '../lib/artPref';
+import { prefersYT, setPrefYT, getCustomArt, setCustomArt, clearCustomArt } from '../lib/artPref';
 import { SAFE } from '../lib/safe';
 import { findBgTwin, peekBgTwin } from '../services/bgtwin';
 import { normalizeTrackState } from '../lib/music-state';
@@ -40,7 +40,9 @@ export default function usePlayer(toast, local = null) {
   const [rate, setRateState] = useStore(K('h_rate'), 1); // 0.5 - 2.0
   const [eqPreset, setEqPresetState] = useStore(K('h_eq_preset'), 'Plano');
   const [eqGains, setEqGainsState] = useStore(K('h_eq_gains'), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-  const [xfade, setXfadeState] = useStore(K('h_xfade'), 1.5); // 0 | 1 | 1.5 | 2 | 3 seg fundido
+  const [xfade, setXfadeState] = useStore(K('h_xfade'), 1.5); // seg de fundido entre canciones (0 = apagado)
+  const [autoCover, setAutoCover] = useStore('h_auto_cover', true); // buscar la carátula oficial sola
+  const autoCoverRef = useRef(autoCover); autoCoverRef.current = autoCover;
   const shuffleRef = useRef(false); shuffleRef.current = shuffle;
   const repeatRef = useRef('off'); repeatRef.current = repeat;
   const rateRef = useRef(rate); rateRef.current = rate;
@@ -117,10 +119,9 @@ export default function usePlayer(toast, local = null) {
     try { ytRef.current?.setRate?.(r); } catch {}
   }, [rate, track]);
 
-  // Progreso: solo actualiza el estado cuando cambia el segundo (antes eran 2-4 renders por
-  // segundo de toda la app, que en celulares lentos se notaba al abrir canciones).
+  // Progreso: actualiza con resolución suave (~0.25s) para sincronización exacta de letras y barra
   const tick = useCallback((cur, dur) => {
-    setTime((prev) => (Math.floor(prev.cur) === Math.floor(cur || 0) && prev.dur === (dur || 0) ? prev : { cur: cur || 0, dur: dur || 0 }));
+    setTime((prev) => (Math.abs(prev.cur - (cur || 0)) < 0.25 && prev.dur === (dur || 0) ? prev : { cur: cur || 0, dur: dur || 0 }));
   }, []);
 
   const normalizeTrack = useCallback((t) => {
@@ -204,7 +205,7 @@ export default function usePlayer(toast, local = null) {
     const nextTrack = normalizeTrack(t);
     if (list) {
       const lf = localRef.current;
-      setQueue(list.map((entry) => {
+      let arr = list.map((entry) => {
         let e = normalizeTrack(entry);
         // Refresca los blob: locales de toda la cola (siguiente/anterior no fallan).
         if (e?.source === 'Local' && lf) {
@@ -212,7 +213,14 @@ export default function usePlayer(toast, local = null) {
           if (f && f !== e.src) e = { ...e, src: f };
         }
         return e;
-      }));
+      });
+      // Mezcla activa: una lista nueva también se mezcla (lo ya sonado y el tema actual se quedan).
+      if (shuffleRef.current && arr.length > 2) {
+        const head = arr.slice(0, i + 1); const rest = arr.slice(i + 1);
+        for (let k = rest.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [rest[k], rest[j]] = [rest[j], rest[k]]; }
+        arr = [...head, ...rest];
+      }
+      setQueue(arr);
     }
     setIndex(i);
     setTrack(nextTrack);
@@ -520,8 +528,10 @@ export default function usePlayer(toast, local = null) {
       playAt(Math.max(0, cur));
       return;
     }
-    // Shuffle: salto aleatorio sin repetir inmediato
-    if (shuffleRef.current && q.length > 1) {
+    // Con la mezcla activa la cola YA está reordenada (ver shuffleQueue): se avanza en orden,
+    // así ninguna canción se repite hasta que hayan sonado las demás. Solo con 1-2 temas
+    // (nada que reordenar) se conserva el salto aleatorio.
+    if (shuffleRef.current && q.length > 1 && q.length < 3) {
       const ni = pickShuffleIndex(q, cur);
       if (ni >= 0) { playAt(ni); return; }
     }
@@ -816,8 +826,29 @@ export default function usePlayer(toast, local = null) {
     return () => {};
   }, [resolving, toast]);
 
+  // --- fundido entre canciones para <audio> (Local/Audius): sube al empezar y baja al terminar,
+  // sin cortes ni saltos de volumen. (YouTube hace lo mismo con su propio sondeo, más abajo.) ---
+  useEffect(() => {
+    if (!track || track.source === 'YouTube') return undefined;
+    let faded = false;
+    const iv = setInterval(() => {
+      const a = audio.current; const xf = xfadeRef.current || 0;
+      if (!a || a.paused) return;
+      const dur = a.duration; const cur = a.currentTime;
+      const base = muted ? 0 : Math.min(1, Math.max(0, volume));
+      if (xf > 0 && isFinite(dur) && dur > xf * 2 + 2) {
+        let f = 1;
+        if (dur - cur < xf) f = Math.max(0.03, (dur - cur) / xf);
+        else if (cur < xf) f = Math.max(0.03, cur / xf);
+        if (f < 0.995) { a.volume = base * f; faded = true; return; }
+      }
+      if (faded) { a.volume = base; faded = false; }
+    }, 120);
+    return () => clearInterval(iv);
+  }, [track, volume, muted]);
+
   // --- sondeo de progreso para temas YouTube (el embed no emite timeupdate) ---
-  // Cada 1s (antes 500ms) y sin re-aplicar el mismo volumen: la mitad de CPU.
+  // Sondeo a 250ms para sincronización exacta de letra y barra de reproducción
   useEffect(() => {
     if (track?.source !== 'YouTube') return;
     let lastApplied = -1;
@@ -840,7 +871,7 @@ export default function usePlayer(toast, local = null) {
           }
         } else lastApplied = -1;
       } catch {}
-    }, 1000);
+    }, 250);
     return () => clearInterval(iv);
   }, [track, tick, volume, muted]);
 
@@ -920,22 +951,32 @@ export default function usePlayer(toast, local = null) {
     return () => clearTimeout(timer);
   }, [track?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- carátula original del tema sonando + próximos de la cola ---
-  // Si el art aún es thumb YT, se reemplaza por iTunes 600 / MB-CAA en fondo.
+  // --- carátula del tema sonando ---
+  // 1) Si el usuario eligió una a mano para esta canción, se vuelve a poner sola.
+  // 2) Si no, y la búsqueda automática está activa, la thumb de YouTube se cambia por la
+  //    oficial (Deezer / iTunes / MusicBrainz-CAA) en segundo plano. El audio no se toca.
   useEffect(() => {
     const t = track;
-    if (!t?.title || !/i\.ytimg\.com/.test(String(t.art || '')) || prefersYT(t.id)) return undefined;
+    if (!t?.id) return undefined;
+    const custom = getCustomArt(t.id);
+    const patch = (url, extra) => {
+      if (trackRef.current?.id !== t.id) return;
+      const nt = { ...trackRef.current, ...extra, art: url };
+      setTrack(nt); setSavedTrack(nt);
+      trackRef.current = nt;
+      setQueue((qq) => qq.map((x) => (x.id === t.id ? { ...x, ...extra, art: url } : x)));
+    };
+    if (custom) {
+      if (t.art !== custom) patch(custom, { artCustom: true, prevArt: t.prevArt || t.art, artOriginal: false });
+      return undefined;
+    }
+    if (!autoCoverRef.current || !t.title || !/i\.ytimg\.com/.test(String(t.art || '')) || prefersYT(t.id)) return undefined;
     let dead = false;
     (async () => {
       try {
         const url = await getOriginalCover(t.title, t.artist, { videoId: t.videoId });
         if (dead || !url || /i\.ytimg\.com/.test(url)) return;
-        if (trackRef.current?.id !== t.id) return;
-        const yt = trackRef.current.art;
-        const nt = { ...trackRef.current, art: url, artOriginal: true, ytArt: yt };
-        setTrack(nt); setSavedTrack(nt);
-        trackRef.current = nt;
-        setQueue((qq) => qq.map((x) => (x.id === t.id ? { ...x, art: url, artOriginal: true, ytArt: yt } : x)));
+        patch(url, { artOriginal: true, ytArt: trackRef.current?.art });
       } catch { /* conserva thumb */ }
     })();
     return () => { dead = true; };
@@ -1007,6 +1048,12 @@ export default function usePlayer(toast, local = null) {
     toast('Se reproducirá después', Heart);
   }, [setQueue, toast]);
 
+  const addToEnd = useCallback((t) => {
+    if (!t) return;
+    setQueue([...queueRef.current, t]);
+    toast('Añadida al final de la cola', Heart);
+  }, [setQueue, toast]);
+
   const removeAt = useCallback((i) => {
     const q = queueRef.current;
     const cur = indexRef.current;
@@ -1031,12 +1078,46 @@ export default function usePlayer(toast, local = null) {
   }, [setIndex, setQueue]);
 
   // --- modos shuffle / repeat / velocidad ---
+  // Mezcla: reordena SOLO lo que falta por sonar (la canción actual y lo ya reproducido se quedan).
+  // El orden original se guarda para devolverlo al desactivar la mezcla.
+  const ORIG_KEY = 'h_queue_orig';
+  const shuffleQueue = useCallback((quiet = false) => {
+    const q = queueRef.current; const cur = indexRef.current;
+    const head = q.slice(0, Math.max(0, cur) + 1);
+    const rest = q.slice(Math.max(0, cur) + 1);
+    if (rest.length < 2) { if (!quiet) toast?.('Mezcla activada'); return; }
+    try { localStorage.setItem(ORIG_KEY, JSON.stringify(q.map((x) => x.id))); } catch { /* noop */ }
+    for (let i = rest.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    setQueue([...head, ...rest]);
+    if (!quiet) toast?.('Mezcla activada');
+  }, [setQueue, toast]);
+  const restoreQueueOrder = useCallback(() => {
+    let ids = null;
+    try { ids = JSON.parse(localStorage.getItem(ORIG_KEY) || 'null'); } catch { ids = null; }
+    try { localStorage.removeItem(ORIG_KEY); } catch { /* noop */ }
+    const q = queueRef.current;
+    if (!Array.isArray(ids) || !ids.length) { toast?.('Mezcla desactivada'); return; }
+    const byId = new Map(q.map((x) => [x.id, x]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    const known = new Set(ids);
+    const extra = q.filter((x) => !known.has(x.id)); // lo que se agregó mientras estaba mezclado va al final
+    const nq = [...ordered, ...extra];
+    const curId = trackRef.current?.id;
+    setQueue(nq);
+    const ni = nq.findIndex((x) => x.id === curId);
+    if (ni >= 0) setIndex(ni);
+    toast?.('Orden original');
+  }, [setQueue, setIndex, toast]);
   const toggleShuffle = useCallback(() => {
-    setShuffleState((s) => {
-      toast?.(!s ? 'Aleatorio activado' : 'Aleatorio desactivado');
-      return !s;
-    });
-  }, [toast]);
+    const on = !shuffleRef.current;
+    shuffleRef.current = on;
+    setShuffleState(on);
+    if (on) shuffleQueue(); else restoreQueueOrder();
+  }, [shuffleQueue, restoreQueueOrder]);
+  const reshuffle = useCallback(() => { if (shuffleRef.current) shuffleQueue(); }, [shuffleQueue]);
   const cycleRepeat = useCallback(() => {
     setRepeatState((r) => {
       const n = r === 'off' ? 'all' : r === 'all' ? 'one' : 'off';
@@ -1049,7 +1130,7 @@ export default function usePlayer(toast, local = null) {
     setRateState(n);
   }, [setRateState]);
   const setXfade = useCallback((v) => {
-    const n = [0, 1, 1.5, 2, 3].includes(Number(v)) ? Number(v) : 1.5;
+    const n = [0, 1, 1.5, 2, 3, 5, 8, 12].includes(Number(v)) ? Number(v) : 1.5;
     setXfadeState(n);
   }, [setXfadeState]);
   const applyEQ = useCallback((preset, gains) => {
@@ -1232,8 +1313,33 @@ export default function usePlayer(toast, local = null) {
     return 'original';
   }, [setQueue, setSavedTrack]);
 
+  /** Pone una carátula elegida (buscador de carátulas) SIN tocar el audio. Se recuerda por canción. */
+  const setArt = useCallback((url, meta = {}) => {
+    const t = trackRef.current;
+    if (!t || !url) return false;
+    setCustomArt(t.id, url);
+    const nt = { ...t, art: url, artCustom: true, artOriginal: false, prevArt: t.artCustom ? t.prevArt : t.art, artMeta: meta };
+    setTrack(nt); setSavedTrack(nt);
+    trackRef.current = nt;
+    setQueue((qq) => qq.map((x) => (x.id === nt.id ? { ...x, art: url, artCustom: true, artOriginal: false, prevArt: nt.prevArt } : x)));
+    return true;
+  }, [setQueue, setSavedTrack]);
+  /** Restaura la carátula anterior a la elegida a mano. */
+  const restoreArt = useCallback(() => {
+    const t = trackRef.current;
+    if (!t?.artCustom) return false;
+    clearCustomArt(t.id);
+    const back = t.prevArt || t.ytArt || t.origArt || '';
+    if (!back) return false;
+    const nt = { ...t, art: back, artCustom: false, prevArt: undefined, artMeta: undefined };
+    setTrack(nt); setSavedTrack(nt);
+    trackRef.current = nt;
+    setQueue((qq) => qq.map((x) => (x.id === nt.id ? { ...x, art: back, artCustom: false, prevArt: undefined } : x)));
+    return true;
+  }, [setQueue, setSavedTrack]);
+
   return {
-    toggleArt,
+    toggleArt, setArt, restoreArt, autoCover, setAutoCover, shuffleQueue, reshuffle, addToEnd,
     audio, ytRef, onYTState, onYTError, applyPendingSeek, tick, bgPref, setBgPref, swapToBg,
     track, playing, setPlaying, time, setTime, resolving, retryCurrent, handleAudioError,
     blocked, blockedOpen, dismissBlocked, openBlocked, closeBlocked, stuck,

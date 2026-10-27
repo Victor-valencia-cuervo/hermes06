@@ -159,10 +159,50 @@ const RULES = [
   { re: /no se pudo leer la imagen|no se pudo guardar/i, title: 'Uy, no se pudo', desc: 'Intenta de nuevo', type: 'error' },
 ];
 
+const RULES_EXTRA = [
+  { re: /youtube no carg[oó]/i, title: 'YouTube no cargó', desc: 'Revisa tu conexión o desactiva el bloqueador e intenta de nuevo', type: 'error' },
+  { re: /conectando con youtube/i, title: 'Conectando con YouTube', desc: 'La primera vez tarda unos segundos', type: 'info' },
+  { re: /tarda demasiado en arrancar/i, title: 'Tarda en arrancar', desc: 'Toca Reintentar o Siguiente', type: 'warning' },
+  { re: /varios temas fallaron seguidos/i, title: 'Varios temas fallaron', desc: 'Se pausó la reproducción', type: 'warning' },
+  { re: /audius no trajo nada/i, title: 'Audius sin resultados', desc: 'Prueba con indie o electrónica', type: 'warning' },
+  { re: /audius no responde/i, title: 'Audius no contesta', desc: 'Espera un toque e intenta de nuevo', type: 'error' },
+  { re: /spotify: no se pudo conectar/i, title: 'No se pudo conectar', desc: 'Spotify no respondió, intenta de nuevo', type: 'error' },
+  { re: /no se pudo reproducir desde spotify/i, title: 'No sonó desde Spotify', desc: 'Prueba con otro tema', type: 'error' },
+  { re: /sin versi[oó]n youtube para ese tema/i, title: 'Sin versión en YouTube', desc: 'Prueba con otro tema', type: 'warning' },
+  { re: /no tiene link de youtube para descargar/i, title: 'Sin link para descargar', desc: 'Este tema no tiene link de YouTube', type: 'warning' },
+  { re: /no se pudo abrir el login/i, title: 'No se abrió el login', desc: 'Intenta de nuevo en un momento', type: 'error' },
+  { re: /ya hay un escaneo en curso/i, title: 'Escaneo en curso', desc: 'Espera a que termine', type: 'warning' },
+  { re: /tu navegador pide elegir archivos/i, title: 'Elige los archivos', desc: 'Usa Agregar carpeta', type: 'warning' },
+  { re: /esa carpeta se agreg[oó] manual/i, title: 'Carpeta manual', desc: 'Elige de nuevo la carpeta para actualizar', type: 'warning' },
+  { re: /no se pudo quitar la carpeta/i, title: 'No se quitó la carpeta', desc: 'Intenta de nuevo', type: 'error' },
+  { re: /no se pudo actualizar$/i, title: 'No se actualizó', desc: 'Intenta de nuevo', type: 'error' },
+  { re: /entra con google para crear salas/i, title: 'Entra para crear salas', desc: 'Con Google en un toque', type: 'warning' },
+];
+
+
+const cap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+const GENERIC = { error: 'Uy, algo falló', warning: 'Ojo con esto', success: 'Listo', info: 'Aviso' };
+
+/** Parte un mensaje suelto en título corto + descripción (nunca todo en el título). */
+function compose(text, type) {
+  const t = text.trim().replace(/\s+/g, ' ');
+  if (!t) return { title: GENERIC[type] || 'Aviso' };
+  // 1) Separadores naturales: "Título: detalle", "Título — detalle", "Título · detalle".
+  const m = t.match(/^(.{3,42}?)(?:\s[—–-]\s|:\s|\s·\s|…\s|\.\s)(.{3,})$/);
+  if (m) return { title: cap(m[1].replace(/[.:…]+$/, '')), description: cap(m[2].replace(/\.$/, '')) };
+  // 2) Corto y sin más: va solo de título.
+  if (t.length <= 36) return { title: t };
+  // 2b) Largo con una coma: la primera parte es el título.
+  const c = t.match(/^(.{6,36}?),\s(.{4,})$/);
+  if (c) return { title: cap(c[1]), description: cap(c[2].replace(/\.$/, '')) };
+  // 3) Largo sin separadores: título genérico del tipo + el mensaje completo de detalle.
+  return { title: GENERIC[type] || 'Aviso', description: cap(t) };
+}
+
 /** Misma firma del toast anterior: notify(msg, Icon). Devuelve el id de sileo. */
 export function notify(msg, I) {
   const text = String(msg ?? '');
-  for (const r of RULES) {
+  for (const r of [...RULES_EXTRA, ...RULES]) {
     if (r.re.test(text)) {
       // title/desc pueden ser función (títulos dinámicos como "85% de que llueva").
       const title = typeof r.title === 'function' ? r.title(text) : (r.title ?? text);
@@ -176,7 +216,8 @@ export function notify(msg, I) {
   if (I === BellRing || I === AlarmClock) {
     return sileo.info({ title: 'Oye, te recuerdo', description: text });
   }
-  return sileo[typeOf(I)]({ title: text });
+  const kind = typeOf(I);
+  return sileo[kind](compose(text, kind));
 }
 
 /** Flujo cargando → listo/fallo (ej. resolver un álbum). */

@@ -25,7 +25,7 @@ import { Section as UISection, SectionTitle, Shelf, SquareCard, BackBar, SongRow
 import { PlaylistCard } from './music/RoomCards';
 import MusicHome from './music/MusicHome';
 import SearchResults from './music/SearchResults';
-import SearchPage from './music/SearchOverlay';
+import SearchPage, { SearchBar } from './music/SearchOverlay';
 import { markPending, setPageContext } from '../lib/playContext';
 import ArtistPage from './music/ArtistPage';
 import AlbumPage from './music/AlbumPage';
@@ -98,8 +98,9 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   // Volver: atrás real del historial; si se abrió directo la URL, al inicio de Música.
   const goBack = () => { if (window.history.state && window.history.state.idx > 0) nav(-1); else nav('/musica', { replace: true }); };
   const [q, setQ] = useState(qParam);
-  const setSearchOpen = (v) => { if (v) nav('/musica/buscar'); else if (route === 'buscar') goBack(); };
   const searchInputRef = useRef(null);
+  const [barFocus, setBarFocus] = useState(false);
+  const blurTimer = useRef(null);
   useEffect(() => {
     if (!searchOpen) return undefined;
     const t = setTimeout(() => { try { searchInputRef.current?.focus(); } catch {} }, 80);
@@ -128,6 +129,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
       toast('No se pudo completar', AlertTriangle);
     }
   };
+  useEffect(() => { if (route === 'home') setQ(''); }, [route]); // eslint-disable-line react-hooks/exhaustive-deps
   const [fuenteRaw, setFuenteRaw] = useStore('h_fuente', 'youtube'); // local | youtube | audius
   // Migra valores viejos y guarda la posición actual (persiste en este dispositivo)
   const fuente = fuenteRaw === 'audius' || fuenteRaw === 'local' || fuenteRaw === 'youtube' ? fuenteRaw : 'youtube';
@@ -261,60 +263,57 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
 
   // Predicciones al escribir: en modo local filtra tus archivos;
   // en YouTube, remotas primero e historial como repliegue.
+  const sugTok = useRef(0);
+  /** Sugerencias que no necesitan red (tus búsquedas y lo que has escuchado): salen al instante. */
+  const localSugs = (v) => {
+    const low = v.trim().toLowerCase();
+    const seen = new Set();
+    const out = [];
+    const add = (label, from) => { const k = label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label, from }); } };
+    for (const past of searchHist || []) { if (past.toLowerCase().includes(low)) add(past, 'search'); if (out.length >= 8) return out; }
+    for (const h of p.history || []) {
+      for (const cand of [h.title, h.artist]) { if (cand && cand.toLowerCase().includes(low)) add(cand, 'hist'); }
+      if (out.length >= 8) break;
+    }
+    return out.slice(0, 8);
+  };
   const onTypeQ = (v) => {
     setQ(v);
     clearTimeout(sugTimer.current);
+    const tok = ++sugTok.current;
     if (v.trim().length < 2) { setSugs([]); setSugOpen(false); return; }
-    sugTimer.current = setTimeout(async () => {
+    if (!lampOn) {
       const lowL = v.trim().toLowerCase();
-      if (!lampOn) {
-        const seen = new Set();
-        const out = [];
-        for (const t of local?.tracks || []) {
-          for (const cand of [t.title, t.artist]) {
-            if (cand && cand.toLowerCase().includes(lowL)) {
-              const k = cand.toLowerCase();
-              if (!seen.has(k)) { seen.add(k); out.push({ label: cand, from: 'hist' }); }
-            }
-          }
-          if (out.length >= 8) break;
-        }
-        setSugs(out);
-        setSugOpen(out.length > 0);
-        return;
-      }
       const seen = new Set();
       const out = [];
-      // Sugerencias remotas solo en YouTube (Piped); en Audius solo historial.
-      if (fuente === 'youtube') {
-        try {
-          for (const s of await getSuggestions(v.trim())) {
-            const k = s.toLowerCase();
-            if (!seen.has(k)) { seen.add(k); out.push({ label: s, from: 'web' }); }
-          }
-        } catch { /* solo historial */ }
-      }
-      // Tus búsquedas pasadas que coincidan (siempre disponible, en local)
-      const low = v.trim().toLowerCase();
-      for (const past of searchHist) {
-        if (past.toLowerCase().includes(low)) {
-          const k = past.toLowerCase();
-          if (!seen.has(k)) { seen.add(k); out.push({ label: past, from: 'search' }); }
-        }
-        if (out.length >= 8) break;
-      }
-      for (const h of p.history || []) {
-        for (const cand of [h.title, h.artist]) {
-          if (cand && cand.toLowerCase().includes(low)) {
+      for (const t of local?.tracks || []) {
+        for (const cand of [t.title, t.artist]) {
+          if (cand && cand.toLowerCase().includes(lowL)) {
             const k = cand.toLowerCase();
             if (!seen.has(k)) { seen.add(k); out.push({ label: cand, from: 'hist' }); }
           }
         }
         if (out.length >= 8) break;
       }
-      setSugs(out.slice(0, 8));
-      setSugOpen(true);
-    }, 300);
+      setSugs(out);
+      setSugOpen(out.length > 0);
+      return;
+    }
+    // 1) Al instante: tus búsquedas pasadas y lo que has escuchado.
+    const instant = localSugs(v);
+    setSugs(instant); setSugOpen(instant.length > 0);
+    // 2) En YouTube, las predicciones de la web llegan enseguida y se mezclan (primero las de la web).
+    if (fuente !== 'youtube') return;
+    sugTimer.current = setTimeout(async () => {
+      let web = [];
+      try { web = await getSuggestions(v.trim()); } catch { /* solo lo local */ }
+      if (tok !== sugTok.current || !web.length) return;
+      const seen = new Set();
+      const out = [];
+      for (const w of web) { const k = w.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ label: w, from: 'web' }); } }
+      for (const l of instant) { const k = l.label.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(l); } }
+      setSugs(out.slice(0, 8)); setSugOpen(true);
+    }, 180);
   };
   const pickSug = (label) => {
     setSugs([]); setSugOpen(false);
@@ -456,16 +455,20 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
       } else {
         const items = await searchYouTube(tt, 15);
         const ranked = rankCandidates(items, { title: tt, artist: tt });
-        const pub = await filterPublic(ranked);
         if (!live()) return;
-        const upd = (l) => { if (live()) setResults(l); };
-        if (pub.length) {
-          setResults(pub);
-          enrichOnlineCovers(pub, upd).catch(() => {}); // carátulas originales en segundo plano
-        } else if (ranked.length) {
-          setResults(ranked);
-          enrichOnlineCovers(ranked, upd).catch(() => {});
-        } else setResults([]);
+        // Se muestran YA (antes esperaban hasta 5 s a verificar cada video con oEmbed).
+        const bad = new Set();
+        const upd = (l) => { if (live()) setResults(l.filter((t) => !bad.has(t.id))); };
+        setResults(ranked);
+        setVideosBusy(false); setLoading(false);
+        enrichOnlineCovers(ranked, upd).catch(() => {}); // carátulas originales en segundo plano
+        // Verificación en segundo plano: si algún video no existe o es privado, simplemente desaparece.
+        filterPublic(ranked).then((pub) => {
+          if (!live() || !pub.length) return;
+          const ok = new Set(pub.map((t) => t.id));
+          ranked.forEach((t) => { if (!ok.has(t.id)) bad.add(t.id); });
+          if (bad.size) setResults((cur) => cur.filter((t) => !bad.has(t.id)));
+        }).catch(() => {});
       }
     } catch {
       if (live()) toast(fuente === 'audius' ? 'Audius no responde, intenta de nuevo' : 'YouTube no responde, intenta de nuevo', AlertTriangle);
@@ -776,42 +779,67 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   const ctx = { p, nav, playEntry, playAlbum, playRadioOf, resolvingId, onBack: goBack, toast,
     openMenu: (t, list, opts) => openMenu(t, list, opts) };
   const inHome = mode === 'home' && !searchOpen;
+  // Título, fuentes y barra se quedan IGUAL (mismo lugar) en inicio, búsqueda y resultados:
+  // solo cambia el contenido de abajo. Nada desaparece ni se reconstruye.
+  const showHead = mode === 'home' || mode === 'results' || searchOpen;
+  const onBarFocus = () => {
+    clearTimeout(blurTimer.current);
+    setBarFocus(true);
+    if (route === 'home') nav('/musica/buscar'); // desde el inicio: abre recientes y "Explorar todo"
+  };
+  const onBarBlur = () => { blurTimer.current = setTimeout(() => setBarFocus(false), 120); };
+  const submitBar = (e) => {
+    e?.preventDefault?.();
+    if (!lampOn) return;
+    goSearch(q);
+    try { searchInputRef.current?.blur(); } catch { /* noop */ } // baja el teclado: se ven los resultados
+  };
+  // En resultados, al editar el texto las sugerencias flotan bajo la barra (los resultados siguen ahí).
+  const floatSugs = mode === 'results' && barFocus && sugOpen && sugs.length > 0;
+  const dropdown = floatSugs ? (
+    <div className="absolute left-5 right-5 lg:left-10 lg:right-10 top-full mt-1 rounded-3xl p-1.5 shadow-2xl max-h-[60dvh] overflow-y-auto"
+      style={{ background: 'var(--s)', border: '1px solid var(--bd)' }} onPointerDown={(e) => e.preventDefault()}>
+      {sugs.map((sg, i) => (
+        <button key={`${sg.label}-${i}`} type="button" onClick={() => pickSug(sg.label)}
+          className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-2xl hover:bg-[var(--s2)] active:scale-[.99] transition">
+          <Search size={16} className="shrink-0" style={{ color: sg.from === 'web' ? 'var(--a)' : 'var(--m)' }} />
+          <span className="truncate flex-1 text-[15px]">{sg.label}</span>
+        </button>
+      ))}
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-4" onClickCapture={markPending}>
-      {inHome && <h2 className="serif text-4xl tracking-wide mb-1">Música</h2>}
+      {showHead && <h2 className="serif text-4xl tracking-wide mb-1">Música</h2>}
 
       {/* Fuente Local | YouTube | Audius: texto que toma el color de la canción */}
-      {inHome && <FuenteTabs fuente={fuente} setFuente={setFuente} art={p.track?.art} />}
+      {showHead && <FuenteTabs fuente={fuente} setFuente={setFuente} art={p.track?.art} />}
 
-      {inHome && (!lampOn ? (
-        <form onSubmit={submit} className="flex gap-2">
-          <div className="relative flex-1">
-            <input className="inp" placeholder="Filtrar tu música local…" value={q}
-              onChange={(e) => onTypeQ(e.target.value)}
-              aria-label="Filtrar música local" autoComplete="off" />
-          </div>
-        </form>
+      {showHead && (!lampOn ? (
+        inHome && (
+          <form onSubmit={(e) => e.preventDefault()} className="flex gap-2">
+            <div className="relative flex-1">
+              <input className="inp" placeholder="Filtrar tu música local…" value={q}
+                onChange={(e) => onTypeQ(e.target.value)}
+                aria-label="Filtrar música local" autoComplete="off" />
+            </div>
+          </form>
+        )
       ) : (
-        <button onClick={() => { setSugs([]); setSugOpen(false); setSearchOpen(true); }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-full text-left active:scale-[.99] transition"
-          style={{ background: 'var(--s2)', border: '1px solid var(--bd)' }} aria-label="Abrir búsqueda">
-          <Search size={17} className="shrink-0" style={{ color: 'var(--a)' }} />
-          <span className="flex-1 min-w-0 text-sm truncate" style={{ color: 'var(--m)' }}>Artistas, canciones o álbumes…</span>
-        </button>
+        <SearchBar q={q} onType={onTypeQ} onSubmit={submitBar} loading={loading && mode === 'results'}
+          onFocus={onBarFocus} onBlur={onBarBlur} inputRef={searchInputRef} dropdown={dropdown} />
       ))}
 
       {searchOpen && lampOn && (
         <SearchPage
-          q={q} onType={onTypeQ} sugs={sugs} loading={loading}
+          q={q} sugs={sugs}
           onPick={pickSug}
-          onSubmit={(e) => { e?.preventDefault?.(); goSearch(q); }}
           hist={searchHist || []}
           onPickHist={(s) => { setQ(s); goSearch(s); }}
           onDelHist={(s) => setSearchHist((h) => (h || []).filter((x) => x !== s))}
           onClearHist={() => setSearchHist([])}
           onTile={(tl) => (tl.kind === 'cat' ? openCategory(tl.query) : goSearch(tl.query))}
-          inputRef={searchInputRef}
         />
       )}
 

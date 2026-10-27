@@ -173,7 +173,7 @@ export function RowsSkeleton({ n = 5 }) {
 }
 
 /** Cabecera inmersiva (artista/álbum): imagen que cubre la parte superior y se difumina con su propio color.
- *  La flecha de volver flota sobre la imagen en móvil (como BitChord). */
+ *  El menú y la flecha de volver (de la cabecera de la app) flotan sobre la imagen. */
 export function ImmersivePage({ img, tint, onBack, children, alt = '' }) {
   const c = tint || 'var(--s2)';
   return (
@@ -183,11 +183,6 @@ export function ImmersivePage({ img, tint, onBack, children, alt = '' }) {
           ? <img src={img} alt={alt} referrerPolicy="no-referrer" fetchPriority="high" decoding="async" className="absolute inset-0 w-full h-full object-cover object-top" />
           : <div className="absolute inset-0 skel" />}
         <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(0,0,0,.38) 0%, transparent 24%, transparent 40%, color-mix(in srgb, ${c} 60%, transparent) 72%, ${c} 100%)` }} />
-        <button onClick={onBack} aria-label="Volver"
-          className="lg:hidden absolute left-4 top-[max(1rem,env(safe-area-inset-top))] w-11 h-11 rounded-full grid place-items-center text-white active:scale-90 transition"
-          style={{ background: 'rgba(0,0,0,.38)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-          <ChevronLeft size={24} />
-        </button>
       </div>
       <div className="relative -mt-14 px-5 lg:px-8">{children}</div>
     </div>

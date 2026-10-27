@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ChevronLeft, Play, Heart, Copy, UserRound, ListMusic,
+  Play, Heart, Copy, UserRound, ListMusic,
   Loader2, MessageCircle, Disc3, Users,
 } from 'lucide-react';
 import Title from '../components/Title';
@@ -14,7 +14,7 @@ import { resolveOfficial } from '../services/youtube';
 
 /** Perfil ajeno en pantalla completa, igual que Mi perfil pero sin editar:
  * hero, stats, lo que escucha ahora, seguir, mensaje, publicadas y clonar. */
-export default function PeerProfileView({ uid, p, toast, auth, onBack, onOpenRoom }) {
+export default function PeerProfileView({ uid, p, toast, auth, onOpenRoom }) {
   const pls = usePlaylists(toast);
   const [prof, setProf] = useState(null);
   const [counts, setCounts] = useState({ followers: 0, following: 0 });
@@ -132,10 +132,7 @@ export default function PeerProfileView({ uid, p, toast, auth, onBack, onOpenRoo
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <button className="ico-btn" onClick={onBack} aria-label="Volver"><ChevronLeft size={20} /></button>
-        <Title>Perfil</Title>
-      </div>
+      <Title>Perfil</Title>
 
       {loading && <div className="card"><p className="text-sm text-center" style={{ color: 'var(--m)' }}>Cargando perfil…</p></div>}
       {!loading && !prof && <div className="card"><p className="text-sm text-center" style={{ color: 'var(--m)' }}>Ese perfil no está disponible.</p></div>}

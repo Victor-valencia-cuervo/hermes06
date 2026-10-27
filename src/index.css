@@ -233,3 +233,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--a); outline-offset:
   .parallax-bg, .parallax-fg { transform: none !important; }
   .lrc-skel i { animation: none !important; }
 }
+
+/* Botones de la cabecera cuando flotan sobre la foto de artista/álbum */
+.immersive-btn { color: #fff; background: rgba(0,0,0,.38); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 9999px; }

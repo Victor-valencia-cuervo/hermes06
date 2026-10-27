@@ -28,7 +28,21 @@ export default class ErrorBoundary extends React.Component {
   render() {
     const { error, stack, jsstack } = this.state;
     if (!error) return this.props.children;
-    const label = this.props.label ? ` · zona: ${this.props.label}` : '';
+    // Si cae solo una zona (menú, contenido, reproductor…) no se tapa toda la app:
+    // tarjeta compacta con reintento sin recargar. La pantalla completa queda para la raíz.
+    if (this.props.label) {
+      return (
+        <div role="alert" style={{ margin: '12px', padding: '14px 16px', borderRadius: 16, background: 'rgba(127,127,127,.12)', border: '1px solid rgba(127,127,127,.25)', fontFamily: 'system-ui, sans-serif', fontSize: 13 }}>
+          <p style={{ fontWeight: 700, marginBottom: 2 }}>Esta parte no pudo cargarse</p>
+          <p style={{ opacity: 0.7, marginBottom: 10, wordBreak: 'break-word' }}>{String(error?.message || error).slice(0, 140)}</p>
+          <button onClick={() => this.setState({ error: null, stack: '', jsstack: '' })}
+            style={{ padding: '8px 16px', borderRadius: 12, border: 0, background: '#6366f1', color: '#fff', fontSize: 13, cursor: 'pointer' }}>
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+    const label = '';
     return (
       <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#09090b', color: '#fafafa', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ maxWidth: 420, textAlign: 'center' }}>

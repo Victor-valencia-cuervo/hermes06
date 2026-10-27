@@ -37,8 +37,7 @@ import HomeView from './views/HomeView';
 // Vistas pesadas en lazy: no van al bundle inicial, cargan al abrirlas.
 const PeerProfileView = lazy(() => import('./views/PeerProfileView'));
 const BlockedSheet = lazy(() => import('./components/BlockedSheet'));
-const FullPlayerSpotify = lazy(() => import('./components/FullPlayerSpotify'));
-const FullPlayerWave = lazy(() => import('./components/FullPlayerWave'));
+const FullPlayer = lazy(() => import('./components/FullPlayer'));
 const RadioFullPlayer = lazy(() => import('./components/RadioFullPlayer'));
 const WeatherView = lazy(() => import('./views/WeatherView'));
 const MusicView = lazy(() => import('./views/MusicView'));
@@ -77,7 +76,11 @@ export default function App() {
   const goBack = (fallback) => { if (window.history.state && window.history.state.idx > 0) navigate(-1); else navigate(fallback || '/', { replace: true }); };
   // Flechita de volver junto al menú: en las pantallas internas de Música (resultados, artista, álbum…).
   const musicSub = /^\/musica\/[^/]+/.test(location.pathname);
-  const immersive = /^\/musica\/(artista|album)\//.test(location.pathname); // traen su propia flecha sobre la foto
+  const immersive = /^\/musica\/(artista|album)\//.test(location.pathname); // cabecera con foto: el menú y la flecha flotan encima
+  // Una sola flecha de volver para todas las pantallas internas: la de la cabecera, junto al menú.
+  const peerSub = view === 'peer';
+  const subScreen = musicSub || peerSub;
+  const backFallback = peerSub ? '/comunidad' : '/musica';
   const mainRef = useRef(null);
   // Scroll: arriba al entrar a una pantalla; al volver atrás recupera dónde estabas.
   const scrollPos = useRef(new Map());
@@ -111,9 +114,10 @@ export default function App() {
   const [unit, setUnit] = useStore('h_unit', 'c');
   const [geoAsked, setGeoAsked] = useStore('h_geo_asked', false);
   const [wxAlerts, setWxAlerts] = useStore('h_wx', false);
-  // Solo hay dos estilos de reproductor: BitChord (hermes-04, por defecto) y Spotify (hermes-03).
-  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'hermes-04');
-  const playerTheme = playerThemeRaw === 'hermes-03' || playerThemeRaw === 'spotify' ? 'hermes-03' : 'hermes-04';
+  // Dos temas: apple-1 (carátula inmersiva) y apple-2 (carátula en cuadro). Los viejos se migran:
+  // BitChord (hermes-04) → Tema 1, Spotify (hermes-03) → Tema 2.
+  const [playerThemeRaw, setPlayerTheme] = useStore('h_player_theme', 'apple-1');
+  const playerTheme = playerThemeRaw === 'apple-2' || playerThemeRaw === 'hermes-03' || playerThemeRaw === 'spotify' ? 'apple-2' : 'apple-1';
   useEffect(() => {
     if (playerThemeRaw !== playerTheme) setPlayerTheme(playerTheme);
   }, [playerThemeRaw, playerTheme]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -265,7 +269,7 @@ export default function App() {
       <Route path="/clima" element={<WeatherView {...{ place, setPlace, unit, setUnit, toast }} />} />
       <Route path="/musica/*" element={<MusicView p={player} toast={toast} local={local} auth={auth} onOpenRoom={openRoom} />} />
       <Route path="/perfil" element={<ProfileView p={player} toast={toast} name={name} setName={setName} auth={auth} cloud={cloud} />} />
-      <Route path="/perfil/:uid" element={<PeerRoute render={(uid) => <PeerProfileView uid={uid} p={player} toast={toast} auth={auth} onBack={() => goBack('/comunidad')} onOpenRoom={openRoom} />} />} />
+      <Route path="/perfil/:uid" element={<PeerRoute render={(uid) => <PeerProfileView uid={uid} p={player} toast={toast} auth={auth} onOpenRoom={openRoom} />} />} />
       <Route path="/comunidad" element={<CommunityView toast={toast} auth={auth} p={player} onOpenRoom={openRoom} onOpenPeer={openPeer} />} />
       <Route path="/chat" element={<ChatView p={player} toast={toast} name={name} auth={auth} initialRoom={null} onOpenPeer={openPeer} />} />
       <Route path="/chat/:roomId" element={<ChatRoute render={(roomId) => <ChatView p={player} toast={toast} name={name} auth={auth} initialRoom={roomId} onOpenPeer={openPeer} />} />} />
@@ -292,14 +296,14 @@ export default function App() {
         mini={{ music: player.track && musicMin ? { title: player.track.title, playing: player.playing } : null,
           radio: radio.current && radioMin ? { title: radio.current.name, playing: radio.playing } : null,
           onMusic: () => setMusicMin(false), onRadio: () => setRadioMin(false) }} /></ErrorBoundary>
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className={`lg:hidden ${immersive ? 'hidden' : 'flex'} items-center justify-between px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]`}>
-          <span className="flex items-center gap-1">
-            <button className="ico-btn" onClick={() => setMenu(true)} aria-label="Abrir menú"><Menu size={22} /></button>
-            {musicSub && <button className="ico-btn" onClick={() => goBack('/musica')} aria-label="Volver"><ArrowLeft size={22} /></button>}
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        <header className={`lg:hidden flex items-center justify-between px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))] ${immersive ? 'absolute top-0 inset-x-0 z-30 pointer-events-none' : ''}`}>
+          <span className={`flex items-center gap-1 ${immersive ? 'pointer-events-auto' : ''}`}>
+            <button className={`ico-btn ${immersive ? 'immersive-btn' : ''}`} onClick={() => setMenu(true)} aria-label="Abrir menú"><Menu size={22} /></button>
+            {subScreen && <button className={`ico-btn ${immersive ? 'immersive-btn' : ''}`} onClick={() => goBack(backFallback)} aria-label="Volver"><ArrowLeft size={22} /></button>}
           </span>
-          <span className="text-xs tracking-[0.2em] uppercase" style={{ color: 'var(--m)' }}>{now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
-          <span className="flex items-center">
+          {!immersive && <span className="text-xs tracking-[0.2em] uppercase" style={{ color: 'var(--m)' }}>{now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }).replace('.', '')}</span>}
+          {!immersive && <span className="flex items-center">
             {player.track && musicMin && (
               <button className="ico-btn relative" onClick={() => setMusicMin(false)}
                 aria-label={`Mostrar música: ${player.track.title}`} title={player.track.title}
@@ -320,13 +324,13 @@ export default function App() {
             <button className="ico-btn" onClick={toggleFs} aria-label={fs ? 'Salir de pantalla completa' : 'Pantalla completa'}>
               {fs ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
             </button>
-          </span>
+          </span>}
         </header>
         <main ref={mainRef} className={`flex-1 overflow-y-auto ${view === 'chat' ? 'px-2 lg:px-6 py-2 lg:py-6' : 'px-5 lg:px-10 py-4 lg:py-10'} ${player.track && radio.current ? 'pb-72' : player.track || radio.current ? 'pb-36' : 'pb-24 lg:pb-10'}`}>
           <ErrorBoundary label="contenido" key={view}>
             <Suspense fallback={<ViewFallback />}>
               <div className={`${view === 'chat' ? 'max-w-none' : 'max-w-3xl lg:max-w-5xl'} mx-auto fin space-y-4`} key={view}>
-                {musicSub && !immersive && <button className="hidden lg:inline-flex ico-btn !w-auto gap-2 px-3 text-sm" onClick={() => goBack('/musica')} aria-label="Volver"><ArrowLeft size={18} /> Volver</button>}
+                {subScreen && <button className="hidden lg:inline-flex ico-btn !w-auto gap-2 px-3 text-sm" onClick={() => goBack(backFallback)} aria-label="Volver"><ArrowLeft size={18} /> Volver</button>}
                 {viewsEl}
               </div>
             </Suspense>
@@ -339,9 +343,7 @@ export default function App() {
       </div>
       <ErrorBoundary label="sonando">
         <Suspense fallback={null}>
-          {full && player.track && (playerTheme === 'hermes-03'
-            ? <FullPlayerSpotify p={player} toast={toast} onClose={closeFull} />
-            : <FullPlayerWave p={player} toast={toast} onClose={closeFull} />)}
+          {full && player.track && <FullPlayer p={player} toast={toast} theme={playerTheme} setTheme={setPlayerTheme} onClose={closeFull} />}
           {radioFull && radio.current && (
             <RadioFullPlayer r={radio} p={player} toast={toast} dark={dark} onClose={() => setRadioFull(false)} />
           )}

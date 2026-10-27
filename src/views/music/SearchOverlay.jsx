@@ -7,25 +7,39 @@ const TILES = [
   ...CATEGORIES.map(([name, , bg]) => ({ label: name, bg, kind: 'cat', query: name })),
 ];
 
-/** Página de búsqueda (dentro de la app, con la flecha de volver arriba junto al menú):
- *  barra de búsqueda limpia, recientes y "Explorar todo" en cuadrícula, como Spotify.
- *  Enter busca; no hay botones duplicados. */
-export default function SearchPage({ q, onType, sugs, loading, onPick, onSubmit, hist, onPickHist, onDelHist, onClearHist, onTile, inputRef }) {
+/** Barra de búsqueda ÚNICA de Música (misma píldora del inicio). Se monta una sola vez y NO
+ *  desaparece al pasar de inicio → búsqueda → resultados: queda fija arriba (sticky) con el texto
+ *  y el foco intactos, así no hay saltos ni transiciones raras. `dropdown` son las sugerencias
+ *  flotantes cuando se edita desde los resultados. */
+export function SearchBar({ q, onType, onSubmit, onFocus, onBlur, loading, inputRef, dropdown }) {
+  return (
+    <div className="sticky top-0 z-20 -mx-5 px-5 lg:-mx-10 lg:px-10 py-2"
+      style={{ background: 'color-mix(in srgb, var(--bg) 92%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+      <form onSubmit={onSubmit} role="search">
+        <div className="flex items-center gap-3 pl-4 pr-1.5 py-1 rounded-full min-h-[3.25rem]" style={{ background: 'var(--s2)', border: '1px solid var(--bd)' }}>
+          <Search size={17} className="shrink-0" style={{ color: 'var(--a)' }} />
+          <input ref={inputRef} type="search" value={q} onChange={(e) => onType(e.target.value)}
+            onFocus={onFocus} onBlur={onBlur}
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm py-2.5"
+            style={{ color: 'var(--t)' }}
+            placeholder="Artistas, canciones o álbumes…" aria-label="Buscar música"
+            autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="search" />
+          {loading
+            ? <span className="w-10 h-10 grid place-items-center shrink-0"><Loader2 size={18} className="animate-spin" style={{ color: 'var(--m)' }} /></span>
+            : !!q && <button type="button" onClick={() => onType('')} onPointerDown={(e) => e.preventDefault()} aria-label="Borrar" className="w-10 h-10 grid place-items-center rounded-full shrink-0"><X size={18} style={{ color: 'var(--m)' }} /></button>}
+        </div>
+      </form>
+      {dropdown}
+    </div>
+  );
+}
+
+/** Contenido de la página de búsqueda (la barra vive aparte, en SearchBar):
+ *  sugerencias al escribir, recientes y "Explorar todo" en cuadrícula, como Spotify. */
+export default function SearchPage({ q, sugs, onPick, hist, onPickHist, onDelHist, onClearHist, onTile }) {
   const typing = q.trim().length >= 2;
   return (
     <div className="space-y-5">
-      <form onSubmit={onSubmit} className="sticky top-0 z-20 -mx-5 px-5 lg:-mx-10 lg:px-10 py-3"
-        style={{ background: 'color-mix(in srgb, var(--bg) 92%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
-        <div className="relative">
-          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--m)' }} />
-          <input ref={inputRef} type="search" className="inp !pl-12 !pr-12 !py-3.5 !text-base !rounded-full" placeholder="¿Qué quieres escuchar?"
-            value={q} onChange={(e) => onType(e.target.value)} aria-label="Buscar música" autoComplete="off" enterKeyHint="search" />
-          {loading
-            ? <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin" style={{ color: 'var(--m)' }} />
-            : !!q && <button type="button" onClick={() => onType('')} aria-label="Borrar" className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 grid place-items-center rounded-full"><X size={18} style={{ color: 'var(--m)' }} /></button>}
-        </div>
-      </form>
-
       {typing && (
         <div>
           {!sugs.length && <p className="text-sm px-1 py-3" style={{ color: 'var(--m)' }}>Pulsa Enter para buscar “{q.trim().slice(0, 30)}”.</p>}
