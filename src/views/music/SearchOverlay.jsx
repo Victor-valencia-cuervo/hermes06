@@ -89,8 +89,8 @@ export default function SearchPage({ q, sugs, onPick, hist, onPickHist, onDelHis
           {!sugs.length && <p className="text-sm px-1 py-3" style={{ color: 'var(--m)' }}>Pulsa Enter para buscar “{q.trim().slice(0, 30)}”.</p>}
           {sugs.map((s, i) => (
             <button key={`${s.label}-${i}`} type="button" onClick={() => onPick(s.label)}
-              className="w-full flex items-center gap-3 px-2 py-3 text-left rounded-xl hover:bg-[var(--s2)] active:scale-[.99] transition">
-              <Cover src={artFor(s.label, pool)} alt="" className="w-11 h-11 rounded-full" iconSize={16} />
+              className="w-full flex items-center gap-4 px-2 py-2.5 text-left rounded-2xl hover:bg-[var(--s2)] active:scale-[.99] transition">
+              <Cover src={artFor(s.label, pool)} alt="" className="w-14 h-14 rounded-2xl" iconSize={18} />
               <span className="flex-1 min-w-0"><Marquee className="text-[15px]">{s.label}</Marquee><span className="block text-[12px]" style={{ color: 'var(--m)' }}>{s.from === 'web' ? 'Sugerencia' : 'De tu historial'}</span></span>
               <ArrowUpLeft size={17} className="shrink-0" style={{ color: 'var(--m)' }} />
             </button>
@@ -103,18 +103,20 @@ export default function SearchPage({ q, sugs, onPick, hist, onPickHist, onDelHis
           {!!hist.length && (
             <section>
               <Heading action={<button className="text-xs px-3 py-2 rounded-full" style={{ color: 'var(--a)' }} onClick={onClearHist}>Limpiar</button>}>Recientes</Heading>
-              {hist.slice(0, 6).map((s) => (
-                <div key={s} className="flex items-center rounded-xl hover:bg-[var(--s2)]">
-                  <button onClick={() => onPickHist(s)} className="flex-1 min-w-0 flex items-center gap-3 px-2 py-2 text-left" title={s}>
-                    <span className="relative shrink-0">
-                      <Cover src={artFor(s, pool)} alt="" className="w-12 h-12 rounded-full" iconSize={16} />
-                      <span className="absolute -right-0.5 -bottom-0.5 w-5 h-5 rounded-full grid place-items-center" style={{ background: 'var(--bg)', border: '1px solid var(--bd)' }}><History size={11} style={{ color: 'var(--m)' }} /></span>
-                    </span>
-                    <Marquee className="text-[15px] flex-1">{s}</Marquee>
-                  </button>
-                  <button className="w-11 h-11 grid place-items-center shrink-0" aria-label={`Borrar ${s}`} onClick={() => onDelHist(s)}><X size={16} style={{ color: 'var(--m)' }} /></button>
-                </div>
-              ))}
+              <div className="space-y-2">
+                {hist.slice(0, 6).map((s) => (
+                  <div key={s} className="flex items-center rounded-2xl hover:bg-[var(--s2)]">
+                    <button onClick={() => onPickHist(s)} className="flex-1 min-w-0 flex items-center gap-4 px-2 py-2 text-left" title={s}>
+                      <span className="relative shrink-0">
+                        <Cover src={artFor(s, pool)} alt="" className="w-14 h-14 rounded-2xl" iconSize={18} />
+                        <span className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full grid place-items-center" style={{ background: 'var(--bg)', border: '1px solid var(--bd)' }}><History size={11} style={{ color: 'var(--m)' }} /></span>
+                      </span>
+                      <Marquee className="text-[15px] flex-1">{s}</Marquee>
+                    </button>
+                    <button className="w-11 h-11 grid place-items-center shrink-0" aria-label={`Borrar ${s}`} onClick={() => onDelHist(s)}><X size={16} style={{ color: 'var(--m)' }} /></button>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
@@ -136,8 +138,8 @@ export default function SearchPage({ q, sugs, onPick, hist, onPickHist, onDelHis
             <section>
               <Heading>Para volver a oír</Heading>
               {tracks.slice(0, 4).map((t) => (
-                <button key={t.id} onClick={() => onPlay?.(t, tracks)} className="w-full flex items-center gap-3 px-2 py-2 text-left rounded-xl hover:bg-[var(--s2)] active:scale-[.99] transition">
-                  <Cover src={t.art} alt="" className="w-12 h-12 rounded-lg" iconSize={16} />
+                <button key={t.id} onClick={() => onPlay?.(t, tracks)} className="w-full flex items-center gap-4 px-2 py-2 text-left rounded-2xl hover:bg-[var(--s2)] active:scale-[.99] transition">
+                  <Cover src={t.art} alt="" className="w-14 h-14 rounded-2xl" iconSize={18} />
                   <span className="flex-1 min-w-0"><Marquee className="text-[15px]">{t.title}</Marquee><Marquee className="text-[13px]" style={{ color: 'var(--m)' }}>{t.artist}</Marquee></span>
                   <Play size={17} className="shrink-0" style={{ color: 'var(--m)' }} />
                 </button>
@@ -151,7 +153,7 @@ export default function SearchPage({ q, sugs, onPick, hist, onPickHist, onDelHis
               {trending.slice(0, 6).map((t, i) => (
                 <button key={`${t.id}-${i}`} onClick={() => onPlay?.(t, trending)} className="w-full flex items-center gap-3 px-2 py-2 text-left rounded-xl hover:bg-[var(--s2)] active:scale-[.99] transition">
                   <span className="w-5 text-center text-sm tabular-nums shrink-0" style={{ color: i < 3 ? 'var(--a)' : 'var(--m)', fontWeight: i < 3 ? 700 : 500 }}>{i + 1}</span>
-                  <Cover src={t.art} alt="" className="w-12 h-12 rounded-lg" iconSize={16} />
+                  <Cover src={t.art} alt="" className="w-14 h-14 rounded-2xl" iconSize={18} />
                   <span className="flex-1 min-w-0"><Marquee className="text-[15px]">{t.title}</Marquee><Marquee className="text-[13px]" style={{ color: 'var(--m)' }}>{t.artist}</Marquee></span>
                 </button>
               ))}

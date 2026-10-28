@@ -8,6 +8,7 @@ import Marquee from './Marquee';
 import BlockedBar from './BlockedBar';
 import FloatCard from './FloatCard';
 import MiniBarSpotify from './MiniBarSpotify';
+import ClipLayer from './ClipLayer';
 import useArtColors from '../hooks/useArtColors';
 import useStore from '../hooks/useStore';
 import { getAvailabilityLabel } from '../lib/music-state';
@@ -19,6 +20,7 @@ export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
   const retriedRef = useRef(null); // id con reintento en curso (sin mutar el track)
   const colors = useArtColors(t?.art);
   const [miniTheme] = useStore('h_mini_theme', 'float');
+  const [clips] = useStore('h_clips', true); // clips de video de la canción (Ajustes)
   if (!t) return null;
 
   const cur0 = p.time?.cur || 0;
@@ -125,8 +127,9 @@ export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
         kindPulse={p.radioBusy}
         art={t.art}
         title={t.title}
-        sub={`${t.artist}${t.source ? ` · ${t.source}` : ''}${availabilityText ? ` · ${availabilityText}` : ''}${!t.full ? ' · vista previa' : ''}`}
-        statusText={p.resolving ? 'Buscando audio…' : availabilityText}
+        sub={t.artist}
+        statusText={p.resolving ? 'Buscando audio…' : ''}
+        mediaLayer={<ClipLayer track={t} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} enabled={clips} />}
         playing={p.playing}
         loading={busy}
         onToggle={p.toggle}

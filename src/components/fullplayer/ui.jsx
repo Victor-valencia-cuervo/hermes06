@@ -125,6 +125,7 @@ export function Sheet({ title, onClose, children, wide, full }) {
 export const FP_CSS = `
 @property --fade { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
 @keyframes fpFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fpKb { from { transform: scale(1.02) translate(0, 0) } to { transform: scale(1.13) translate(-2.2%, -1.8%) } }
 @keyframes fpSheet { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
 @keyframes fpEq { 0%,100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
 @keyframes fpUp { from { transform: translateY(10px); opacity: 0 } to { transform: none; opacity: 1 } }

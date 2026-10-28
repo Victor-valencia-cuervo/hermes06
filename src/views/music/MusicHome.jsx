@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Play, Pause, Loader2, Plus, Shuffle, Heart } from 'lucide-react';
 import Cover from '../../components/Cover';
+import Marquee from '../../components/Marquee';
 import { Section, SectionTitle, Shelf, SquareCard, SongRow, ShelfSkeleton, RowsSkeleton } from './ui';
 import { PlaylistCard, RoomPlCard } from './RoomCards';
 import { CATEGORIES, MOODS } from './data';
@@ -152,13 +153,12 @@ export default function MusicHome({ h }) {
           ))}
           {/* Al deslizar hasta el final aparece Crear playlist */}
           <button onClick={onCreatePl} aria-label="Crear playlist"
-            className="snap-start w-[8.75rem] sm:w-[11rem] shrink-0 text-left group">
-            <span className="grid place-items-center w-[8.75rem] h-[8.75rem] sm:w-[11rem] sm:h-[11rem] rounded-2xl transition group-active:scale-95"
+            className="snap-start w-[10.25rem] sm:w-[12.5rem] shrink-0 text-left group">
+            <span className="grid place-items-center w-[10.25rem] h-[10.25rem] sm:w-[12.5rem] sm:h-[12.5rem] rounded-2xl transition group-active:scale-95"
               style={{ border: '2px dashed var(--bd)', background: 'var(--s)' }}>
               <span className="w-12 h-12 rounded-full grid place-items-center text-white" style={{ background: 'var(--a)' }}><Plus size={24} /></span>
             </span>
             <p className="text-[15px] font-semibold mt-2">Crear playlist</p>
-            <p className="text-[13px]" style={{ color: 'var(--m)' }}>Empieza una nueva</p>
           </button>
         </Shelf>
         {!hasReplay && <p className="text-sm mt-1" style={{ color: 'var(--m)' }}>Aún no hay nada aquí: reproduce una canción o dale ♥ y aparece.</p>}
@@ -218,38 +218,16 @@ export default function MusicHome({ h }) {
             {CHART_COUNTRIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         } />
-        <div className="card !p-4 space-y-4">
-          {chartsLoading && !trend && <RowsSkeleton n={4} />}
-          {trend && (
-            <>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-2xl p-3" style={{ background: 'var(--s2)' }}>
-                  <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--m)' }}>N.º 1</p>
-                  <p className="text-sm font-semibold mt-1 line-clamp-2 leading-snug">{trend.n1?.title}</p>
-                  <p className="text-[11px] truncate" style={{ color: 'var(--m)' }}>{trend.n1?.artist}</p>
-                </div>
-                <div className="rounded-2xl p-3" style={{ background: 'var(--s2)' }}>
-                  <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--m)' }}>Artista del momento</p>
-                  <p className="text-sm font-semibold mt-1 line-clamp-2 leading-snug">{trend.topA?.[0] || '—'}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--m)' }}>{trend.topA ? `${trend.topA[1]} en el top ${trend.total}` : ''}</p>
-                </div>
-                <div className="rounded-2xl p-3" style={{ background: 'var(--s2)' }}>
-                  <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--m)' }}>Género dominante</p>
-                  <p className="text-sm font-semibold mt-1 line-clamp-2 leading-snug">{trend.topG?.[0] || '—'}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--m)' }}>{trend.topG ? `${trend.topG[1]} de ${trend.total} temas` : ''}</p>
-                </div>
-              </div>
-              <div>
-                {charts.slice(0, 5).map((c) => (
-                  <SongRow key={c.id} n={c.rank} art={c.art} title={c.title} sub={c.artist}
-                    active={false} loading={resolvingId === c.id} onPlay={() => playEntry(c)}
-                    onMenu={() => openMenu({ ...c, source: 'YouTube' }, charts, { kind: 'chart', onPlay: playEntry })} />
-                ))}
-              </div>
-            </>
-          )}
-          {!chartsLoading && !trend && <p className="text-sm" style={{ color: 'var(--m)' }}>No se pudo cargar el top de {countryName}. Prueba con otro país.</p>}
-        </div>
+        {chartsLoading && !charts?.length && <ShelfSkeleton n={5} />}
+        {!!charts?.length && (
+          <Shelf>
+            {charts.slice(0, 12).map((c) => (
+              <SquareCard key={c.id} art={c.art} title={c.title} sub={c.artist} badge={c.rank ? `#${c.rank}` : undefined} label={`Reproducir ${c.title}`}
+                spinning={resolvingId === c.id} onClick={() => playEntry(c)} />
+            ))}
+          </Shelf>
+        )}
+        {!chartsLoading && !charts?.length && <p className="text-sm" style={{ color: 'var(--m)' }}>No se pudo cargar el top de {countryName}. Prueba con otro país.</p>}
       </section>
 
       {/* ===== Selecciones rápidas ===== */}
@@ -261,10 +239,10 @@ export default function MusicHome({ h }) {
               return (
                 <button key={t.id} onClick={() => play(t)} className="flex items-center gap-3 rounded-xl overflow-hidden text-left active:scale-[.98] transition pr-2"
                   style={{ background: on ? 'color-mix(in srgb, var(--a) 18%, var(--s2))' : 'var(--s2)' }} aria-label={`Reproducir ${t.title}`}>
-                  <Cover src={t.art} className="w-14 h-14 shrink-0" />
-                  <span className="min-w-0 py-1">
-                    <span className="block text-[13px] font-semibold line-clamp-2 leading-tight" style={{ color: on ? 'var(--a)' : undefined }}>{t.title}</span>
-                    <span className="block text-[11px] truncate" style={{ color: 'var(--m)' }}>{t.artist}</span>
+                  <Cover src={t.art} className="w-16 h-16 shrink-0" />
+                  <span className="min-w-0 flex-1 py-1">
+                    <Marquee className="text-[13px] font-semibold leading-tight" style={{ color: on ? 'var(--a)' : undefined }}>{t.title}</Marquee>
+                    <Marquee className="text-[12px]" style={{ color: 'var(--m)' }}>{t.artist}</Marquee>
                   </span>
                 </button>
               );

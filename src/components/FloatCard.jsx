@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Marquee from './Marquee';
-import { Play, Pause, SkipBack, SkipForward, Heart, Volume2, VolumeX, X, Loader2, Minus } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Heart, X, Loader2, Minus } from 'lucide-react';
 
 /* Tarjeta flotante estilo Spotify: arrastrable, se queda donde la dejas,
    X para ocultarla hasta el próximo play, color del tema + chip MÚSICA/RADIO. */
@@ -16,75 +16,73 @@ const StyledWrapper = styled.div`
   user-select: none;
 
   .card {
-    position: relative; width: 300px; padding: 12px 14px 10px;
-    background: #141416; border-radius: 22px; color: #fff;
-    border: 1px solid rgba(255,255,255,.08);
-    box-shadow: 0 18px 40px -12px rgba(0,0,0,.6);
-    cursor: grab; display: flex; flex-direction: column; gap: 8px;
+    position: relative; width: 300px; height: 184px; padding: 0;
+    background: color-mix(in srgb, ${(p) => p.$accent} 40%, #141416); border-radius: 26px; color: #fff; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 20px 44px -14px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.18);
+    cursor: grab;
   }
   .card.dragging { cursor: grabbing; }
   .card.dragging * { pointer-events: none; }
-  .bgwrap { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
-  .bgwrap img { width: 100%; height: 100%; object-fit: cover; filter: blur(28px) saturate(1.5); transform: scale(1.4); opacity: .32; }
-  .bgwrap::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,20,22,.2), rgba(20,20,22,.78)); }
-  .top, .prog, .controls { position: relative; z-index: 1; }
+  /* Imagen completa de la canción (con movimiento lento tipo Apple Music mientras suena) */
+  .art { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .art.kb img { animation: fckb 26s ease-in-out infinite alternate; }
+  @keyframes fckb { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.14) translate(-2.5%, -2%); } }
+  .art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.34) 0%, transparent 30%, transparent 52%, rgba(0,0,0,.5) 100%); }
+  .noart { position: absolute; inset: 0; background: radial-gradient(120% 90% at 20% 10%, color-mix(in srgb, ${(p) => p.$accent} 75%, #fff) 0%, color-mix(in srgb, ${(p) => p.$accent} 45%, #101012) 60%, #101012 100%); }
+  .medialayer { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 
-  .top { display: flex; align-items: center; gap: 12px; padding-right: 84px; }
-  .pfp {
-    position: relative; height: 52px; width: 52px; min-width: 52px;
-    background-color: #2a2a2a; border-radius: 14px; overflow: hidden;
-    border: none; padding: 0; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
-    box-shadow: 0 6px 16px -6px rgba(0,0,0,.7);
-  }
-  .pfp img { width: 100%; height: 100%; object-fit: cover; }
-  .pfp .eqveil { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.4); }
-
-  .texts { flex: 1; min-width: 0; }
-  .texts .kind { margin-bottom: 5px; }
-  .title-1 { color: #fff; font-size: 17px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .title-2 { color: rgba(255,255,255,.68); font-size: 14px; font-weight: 500; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Etiqueta de arriba (vidrio) */
   .kind {
-    display: inline-flex; align-items: center; font-size: 9px; font-weight: 800; letter-spacing: .14em;
-    color: ${(p) => p.$accent}; border: 1px solid color-mix(in srgb, ${(p) => p.$accent} 60%, transparent);
-    border-radius: 99px; padding: 2px 7px; line-height: 1;
+    position: absolute; top: 10px; left: 10px; z-index: 2;
+    display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 800; letter-spacing: .14em;
+    color: #fff; padding: 5px 9px 5px 8px; border-radius: 99px; line-height: 1;
+    background: rgba(20,20,24,.34); border: 1px solid rgba(255,255,255,.18);
+    -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5);
   }
-  .kind .dot { display: inline-block; width: 5px; height: 5px; border-radius: 99px; background: ${(p) => p.$accent}; margin-right: 5px; }
+  .kind .dot { display: inline-block; width: 5px; height: 5px; border-radius: 99px; background: ${(p) => p.$accent}; box-shadow: 0 0 8px ${(p) => p.$accent}; }
   .kind .dot.pulse { animation: kindpulse 1.2s ease-in-out infinite; }
   @keyframes kindpulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 
-  .corner { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; z-index: 2; }
-  .corner button { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; min-width: 36px; min-height: 36px; padding: 8px; border-radius: 10px; display: grid; place-items: center; }
-  .corner button:hover { color: ${(p) => p.$accent}; background: rgba(255,255,255,.08); }
-  .corner button:focus-visible, .controls button:focus-visible, .pfp:focus-visible { outline: 2px solid ${(p) => p.$accent}; outline-offset: 2px; }
+  .corner { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 3; }
+  .corner button { background: rgba(20,20,24,.34); border: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.9); cursor: pointer; width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; border-radius: 99px; display: grid; place-items: center;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .corner button:hover { color: ${(p) => p.$accent}; }
+  .corner button:focus-visible, .controls button:focus-visible { outline: 2px solid ${(p) => p.$accent}; outline-offset: 2px; }
 
-  .prog { display: flex; align-items: center; gap: 8px; }
-  .timetext { color: rgba(255,255,255,.7); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 32px; }
-  .prog .timetext:last-child { text-align: right; }
-  /* Visual intacto (5px); la zona táctil crece con aire invisible arriba/abajo */
-  .time { position: relative; flex: 1; background-color: rgba(255,255,255,.2); height: 5px; border-radius: 3px; cursor: pointer; touch-action: none; }
-  .time::before { content: ''; position: absolute; left: 0; right: 0; top: -14px; bottom: -14px; }
+  /* Barra de vidrio inferior: nombre + artista + controles */
+  .glassbar {
+    position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2;
+    padding: 9px 8px 9px 14px; border-radius: 20px; overflow: hidden;
+    background: linear-gradient(155deg, rgba(255,255,255,.2) 0%, rgba(30,30,36,.34) 55%, rgba(20,20,24,.42) 100%);
+    border: 1px solid rgba(255,255,255,.2);
+    -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 10px 26px -12px rgba(0,0,0,.6);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .texts { flex: 1; min-width: 0; }
+  .title-1 { color: #fff; font-size: 16px; font-weight: 700; line-height: 1.2; text-shadow: 0 1px 8px rgba(0,0,0,.3); }
+  .title-2 { color: rgba(255,255,255,.74); font-size: 13px; font-weight: 500; margin-top: 1px; line-height: 1.2; }
+  .controls { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+  .controls button { background: none; border: none; color: #fff; cursor: pointer; width: 36px; height: 40px; min-width: 36px; min-height: 40px; padding: 0; border-radius: 12px; display: grid; place-items: center; transition: transform .15s, opacity .15s; }
+  .controls button:active { transform: scale(.9); }
+  .controls button:disabled { opacity: .5; cursor: default; }
+  .controls .mainbtn { width: 40px; height: 40px; border-radius: 99px; background: rgba(255,255,255,.92); color: #111; margin: 0 2px; }
+  /* Progreso: línea finita en el borde inferior de la barra */
+  .prog { position: absolute; left: 14px; right: 14px; bottom: 3px; height: 3px; z-index: 3; }
+  .time { position: relative; width: 100%; background-color: rgba(255,255,255,.22); height: 3px; border-radius: 3px; cursor: pointer; touch-action: none; }
+  .time::before { content: ''; position: absolute; left: 0; right: 0; top: -12px; bottom: -8px; }
   .time.live { cursor: default; }
-  .elapsed { height: 100%; border-radius: 3px; background-color: ${(p) => p.$accent}; }
+  .elapsed { height: 100%; border-radius: 3px; background-color: #fff; }
   .elapsed.indet { width: 35% !important; animation: liveslide 1.6s ease-in-out infinite; }
   @keyframes liveslide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
-
-  .controls { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
-  .controls button { background: none; border: none; color: #fff; cursor: pointer; min-width: 44px; min-height: 44px; padding: 10px; border-radius: 12px; display: grid; place-items: center; transition: color .15s, transform .15s, background .15s; }
-  .controls button:hover { color: ${(p) => p.$accent}; background: rgba(255,255,255,.06); }
-  .controls button:active { transform: scale(.92); }
-  .controls button:disabled { opacity: .45; cursor: default; }
-  .controls .mainbtn { width: 52px; height: 52px; border-radius: 99px; background: ${(p) => p.$accent}; color: #fff; box-shadow: 0 6px 18px -4px ${(p) => p.$accent}; }
-  .controls .mainbtn:hover { color: #fff; transform: scale(1.05); background: ${(p) => p.$accent}; }
+  .livechip { color: #ff6b6b; font-weight: 800; letter-spacing: .08em; font-size: 9px; }
   @media (prefers-reduced-motion: reduce) {
-    .kind .dot.pulse, .playing.on .greenline, .elapsed.indet { animation: none !important; }
+    .kind .dot.pulse, .playing.on .greenline, .elapsed.indet, .art.kb img { animation: none !important; }
   }
   .fav-on { color: ${(p) => p.$accent} !important; }
 
-  .volwrap { position: relative; display: flex; align-items: center; }
-  .volume { position: absolute; left: -6px; bottom: calc(100% + 8px); padding: 10px 12px; border-radius: 12px; background: #202024; border: 1px solid rgba(255,255,255,.1); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity .18s, transform .18s; }
-  .volume.open { opacity: 1; pointer-events: auto; transform: none; }
-  .volume input { width: 96px; height: 4px; accent-color: ${(p) => p.$accent}; cursor: pointer; display: block; }
   .live-tag { color: #ff6b6b; font-weight: 800; letter-spacing: .08em; }
 
   .playing { display: flex; position: relative; justify-content: center; gap: 1px; width: 30px; height: 20px; }
@@ -133,7 +131,7 @@ function clampPos(x, y) {
   const w = typeof window !== 'undefined' ? window.innerWidth : 400;
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
   const cw = Math.min(300, w - 24);
-  const ch = 150;
+  const ch = 184;
   return {
     x: Math.min(Math.max(0, x), Math.max(0, w - cw)),
     y: Math.min(Math.max(0, y), Math.max(0, h - ch)),
@@ -146,11 +144,11 @@ function posFromFrac(fx, fy) {
   const w = typeof window !== 'undefined' ? window.innerWidth : 400;
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
   const cw = Math.min(300, w - 24);
-  return clampPos(fx * Math.max(0, w - cw), fy * Math.max(0, h - 150));
+  return clampPos(fx * Math.max(0, w - cw), fy * Math.max(0, h - 184));
 }
 function toSaved(p) {
   const w = window.innerWidth; const h = window.innerHeight; const cw = Math.min(300, w - 24);
-  return { x: p.x, y: p.y, fx: w - cw > 0 ? p.x / (w - cw) : 0, fy: h - 150 > 0 ? p.y / (h - 150) : 0 };
+  return { x: p.x, y: p.y, fx: w - cw > 0 ? p.x / (w - cw) : 0, fy: h - 184 > 0 ? p.y / (h - 184) : 0 };
 }
 function loadPos(key) {
   try {
@@ -200,7 +198,6 @@ export default function FloatCard(props) {
     else setInnerMin(v);
     try { if (minKey) localStorage.setItem(minKey, v ? '1' : '0'); } catch {}
   };
-  const [showVol, setShowVol] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [dragging, setDragging] = useState(false);
   // Salida animada (X / minimizar): se encoge 200ms y recién ahí se oculta
@@ -243,7 +240,7 @@ export default function FloatCard(props) {
     const wr = cardRef.current.parentElement.getBoundingClientRect(); // el contenedor (incluye el aviso de arriba)
     const startX = e.clientX - (pos ? pos.x : wr.left);
     const startY = e.clientY - (pos ? pos.y : wr.top);
-    drag.current = { startX, startY, moved: false };
+    drag.current = { startX, startY, moved: false, cx: e.clientX, cy: e.clientY };
     setDragging(true);
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
@@ -251,15 +248,17 @@ export default function FloatCard(props) {
     if (!drag.current) return;
     const nx = e.clientX - drag.current.startX;
     const ny = e.clientY - drag.current.startY;
-    if (!drag.current.moved && Math.hypot(e.movementX || 0, e.movementY || 0) < 1) {
+    if (!drag.current.moved && Math.hypot(e.clientX - drag.current.cx, e.clientY - drag.current.cy) > 6) {
       drag.current.moved = true;
     }
     const c = clampPos(nx, ny);
     setPos(c);
   };
-  const endDrag = () => {
+  const endDrag = (e) => {
     if (!drag.current) return;
+    const wasTap = !drag.current.moved && e?.type === 'pointerup';
     drag.current = null;
+    if (wasTap) onArtClick?.();
     setDragging(false);
     setPos((pp) => {
       if (pp) { try { localStorage.setItem(posKey, JSON.stringify(toSaved(pp))); } catch { /* noop */ } }
@@ -290,44 +289,49 @@ export default function FloatCard(props) {
         role="region"
         aria-label={`${kind} ${title}`}
       >
-        {art && <div className="bgwrap" aria-hidden="true"><img src={art} alt="" draggable={false} /></div>}
-        <div className="top">
-          <button className="pfp" onClick={onArtClick} aria-label="Abrir sonando" title="Abrir sonando">
-            {art ? <img src={art} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : null}
-            <span className="eqveil">
-              <span className={`playing${playing ? ' on' : ''}`}>
-                <span className="greenline line-1" />
-                <span className="greenline line-2" />
-                <span className="greenline line-3" />
-                <span className="greenline line-4" />
-                <span className="greenline line-5" />
-              </span>
-            </span>
-          </button>
-          <div className="texts">
-            <span className="kind"><span className={`dot${kindPulse ? ' pulse' : ''}`} />{kind}</span>
-            <Marquee className="title-1">{title}</Marquee>
-            <Marquee className="title-2">{statusText || sub}</Marquee>
-          </div>
-        </div>
+        {art
+          ? <div className={`art${playing ? ' kb' : ''}`} aria-hidden="true"><img src={art} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} /></div>
+          : <div className="noart" aria-hidden="true" />}
+        {props.mediaLayer && <div className="medialayer" aria-hidden="true">{props.mediaLayer}</div>}
+
+        <span className="kind">
+          <span className={`playing${playing ? ' on' : ''}`} aria-hidden="true" style={{ width: 14, height: 10 }}>
+            <span className="greenline line-1" /><span className="greenline line-2" /><span className="greenline line-3" />
+          </span>
+          {kind}
+        </span>
 
         <div className="corner">
           {queuePop && QueueIcon && (
             <button onClick={() => setShowQueue((s) => !s)} aria-label={showQueue ? 'Ocultar cola' : 'Ver cola'} aria-expanded={showQueue ? 'true' : 'false'} title="Cola"
               style={showQueue ? { color: accent } : undefined}>
-              <QueueIcon size={16} />
+              <QueueIcon size={14} />
             </button>
           )}
-          <button onClick={() => animateOut(() => setMinPersist(true))} aria-label="Minimizar (sigue sonando)" title="Minimizar (sigue sonando)"><Minus size={16} /></button>
-          <button onClick={close} aria-label="Pausar y quitar tarjeta" title="Quitar"><X size={16} /></button>
+          <button onClick={onFav} aria-label={fav ? `Quitar de favoritos: ${title}` : `Marcar favorito: ${title}`} aria-pressed={fav ? 'true' : 'false'} title="Favorito" className={fav ? 'fav-on' : ''}>
+            <Heart size={14} fill={fav ? accent : 'none'} />
+          </button>
+          <button onClick={() => animateOut(() => setMinPersist(true))} aria-label="Minimizar (sigue sonando)" title="Minimizar (sigue sonando)"><Minus size={14} /></button>
+          <button onClick={close} aria-label="Pausar y quitar tarjeta" title="Quitar"><X size={14} /></button>
         </div>
 
-        <div className="prog">
-          {progress ? (
-            <>
-              <span className="timetext" aria-hidden="true">{progress.curText}</span>
+        <div className="glassbar">
+          <div className="texts">
+            <Marquee className="title-1" speed={26}>{title}</Marquee>
+            <Marquee className="title-2" speed={26}>{statusText || sub}</Marquee>
+          </div>
+          <div className="controls">
+            <button onClick={onPrev} aria-label="Anterior" title="Anterior"><SkipBack size={20} fill="currentColor" /></button>
+            <button className="mainbtn" onClick={onToggle} aria-label={loading ? 'Cargando audio' : toggleLabel} title={loading ? 'Cargando…' : toggleLabel} aria-busy={loading ? 'true' : undefined} disabled={!!loading}>
+              {loading
+                ? <Loader2 size={20} className="animate-spin" />
+                : playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+            </button>
+            <button onClick={onNext} aria-label="Siguiente" title="Siguiente"><SkipForward size={20} fill="currentColor" /></button>
+          </div>
+          <div className="prog">
+            {progress ? (
               <div className="time"
-                ref={undefined}
                 onPointerDown={(e) => {
                   if (!onSeek) return;
                   scrub.current = true;
@@ -347,55 +351,20 @@ export default function FloatCard(props) {
                 }}
                 tabIndex={onSeek ? 0 : -1}
                 role="slider" aria-label={`Progreso de ${title}`} aria-valuemin={0} aria-valuemax={Math.round(progress.dur || 0)} aria-valuenow={Math.round(progress.cur || 0)} aria-valuetext={`${progress.curText} de ${progress.durText}`}
-                title="Adelantar / atrasar (flechas ← →)"><div className="elapsed" style={{ width: `${pct}%` }} /></div>
-              <span className="timetext" aria-hidden="true">{progress.durText}</span>
-            </>
-          ) : (
-            <>
-              <span className="timetext live-tag">EN VIVO</span>
+                title={`${progress.curText} / ${progress.durText}`}><div className="elapsed" style={{ width: `${pct}%` }} /></div>
+            ) : (
               <div className="time live" aria-hidden="true"><div className="elapsed indet" /></div>
-              <span className="timetext">{liveRight}</span>
-            </>
-          )}
-        </div>
-
-        <div className="controls">
-          <span className="volwrap">
-            <button
-              aria-label={showVol ? 'Ocultar volumen' : 'Mostrar volumen'} aria-expanded={showVol ? 'true' : 'false'} title="Volumen"
-              onClick={() => setShowVol((s) => !s)}
-              onMouseEnter={() => { if (window.matchMedia?.('(hover: hover)').matches) setShowVol(true); }}
-            >
-              {muted || volume === 0 ? <VolumeX size={21} /> : <Volume2 size={21} />}
-            </button>
-            <span className={`volume${showVol ? ' open' : ''}`}>
-              <input
-                type="range" min="0" max="1" step="0.05"
-                value={muted ? 0 : volume}
-                onChange={(e) => onVolume?.(+e.target.value)}
-                onDoubleClick={() => onMute?.()}
-                aria-label={`Volumen ${Math.round((muted ? 0 : volume) * 100)} por ciento, doble toque para silenciar`}
-              />
-            </span>
-          </span>
-          <button onClick={onPrev} aria-label="Anterior" title="Anterior"><SkipBack size={23} /></button>
-          <button className="mainbtn" onClick={onToggle} aria-label={loading ? 'Cargando audio' : toggleLabel} title={loading ? 'Cargando…' : toggleLabel} aria-busy={loading ? 'true' : undefined} disabled={!!loading}>
-            {loading
-              ? <Loader2 size={26} className="animate-spin" />
-              : playing ? <Pause size={26} /> : <Play size={26} className="ml-0.5" />}
-          </button>
-          <button onClick={onNext} aria-label="Siguiente" title="Siguiente"><SkipForward size={23} /></button>
-          <button onClick={onFav} aria-label={fav ? `Quitar de favoritos: ${title}` : `Marcar favorito: ${title}`} aria-pressed={fav ? 'true' : 'false'} title="Favorito" className={fav ? 'fav-on' : ''}>
-            <Heart size={21} fill={fav ? accent : 'none'} />
-          </button>
-        </div>
-
-        {showQueue && (
-          <div className="queuepop" onPointerDown={(e) => e.stopPropagation()}>
-            {props.queuePop}
+            )}
           </div>
-        )}
+        </div>
+
       </div>
+      {/* La cola va fuera de la tarjeta (la tarjeta recorta lo que se sale de su borde redondeado) */}
+      {showQueue && (
+        <div className="queuepop" onPointerDown={(e) => e.stopPropagation()}>
+          {props.queuePop}
+        </div>
+      )}
     </StyledWrapper>
   );
 }

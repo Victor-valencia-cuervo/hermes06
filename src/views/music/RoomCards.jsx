@@ -7,8 +7,8 @@ export function PlaylistCard({ pl, plays, onClick }) {
   const arts = (pl.tracks || []).slice(0, 4).map((t) => t.art);
   while (arts.length < 4) arts.push(null);
   return (
-    <button onClick={onClick} className="min-w-[9rem] w-[9rem] sm:min-w-[11rem] sm:w-[11rem] text-left shrink-0 group">
-      <div className="relative w-[9rem] h-[9rem] sm:w-[11rem] sm:h-[11rem] rounded-3xl overflow-hidden shadow-lg grid grid-cols-2 grid-rows-2 transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]" style={{ background: 'var(--s2)' }}>
+    <button onClick={onClick} className="min-w-[10.25rem] w-[10.25rem] sm:min-w-[12.5rem] sm:w-[12.5rem] text-left shrink-0 group">
+      <div className="relative w-[10.25rem] h-[10.25rem] sm:w-[12.5rem] sm:h-[12.5rem] rounded-3xl overflow-hidden shadow-lg grid grid-cols-2 grid-rows-2 transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]" style={{ background: 'var(--s2)' }}>
         {arts.map((a, i) => (a
           ? <Cover key={i} src={a} className="w-full h-full min-w-0" iconSize={20} />
           : <div key={i} className="w-full h-full grid place-items-center" style={{ background: 'color-mix(in srgb, var(--a) 22%, var(--s2))' }}><ListMusic size={20} style={{ color: 'var(--a)' }} /></div>

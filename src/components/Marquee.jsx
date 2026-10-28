@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
  *  (como en Spotify / Apple Music) para que se pueda leer completo en vez de cortarse con "…".
  *  Si cabe, queda quieto. Respeta "reducir movimiento" (ahí se queda con "…").
  *  Uso: <Marquee className="text-[15px] font-semibold">{titulo}</Marquee> */
-export default function Marquee({ children, className = '', style, speed = 38, gap = 36, title }) {
+export default function Marquee({ children, className = '', style, speed = 28, gap = 36, title }) {
   const text = Array.isArray(children) ? children.join('') : String(children ?? '');
   const box = useRef(null);
   const txt = useRef(null);

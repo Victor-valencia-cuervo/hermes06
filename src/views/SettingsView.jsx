@@ -21,6 +21,7 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
   const [lyricsFont, setLyricsFont] = useStore('h_lyrics_font', 'apple'); // apple (sans) | hermes (serif de Hermes)
   const [autoCover, setAutoCover] = useStore('h_auto_cover', true);
   const [miniTheme, setMiniTheme] = useStore('h_mini_theme', 'float'); // float | bar
+  const [clips, setClips] = useStore('h_clips', true); // clips de video de la canción en el reproductor
   const [fsBtn, setFsBtn] = useStore('h_fs_btn', true); // botón de pantalla completa en la cabecera
   const checkLB = async () => {
     if (!lbToken.trim()) { toast?.('Pega tu token ListenBrainz primero'); return; }
@@ -96,6 +97,10 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
         <button onClick={() => setAutoCover(!autoCover)} role="switch" aria-checked={!!autoCover} className="w-full flex items-center justify-between gap-3 mb-3 text-left">
           <span><span className="block text-xs font-semibold">Buscar la carátula oficial automáticamente</span><span className="block text-xs" style={{ color: 'var(--m)' }}>Cambia la imagen de YouTube por la del lanzamiento original. El audio no cambia.</span></span>
           <span className="w-11 h-6 rounded-full relative shrink-0" style={{ background: autoCover ? 'var(--a)' : 'var(--bd)' }}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: autoCover ? 22 : 2 }} /></span>
+        </button>
+        <button onClick={() => setClips(!clips)} role="switch" aria-checked={!!clips} className="w-full flex items-center justify-between gap-3 mb-3 text-left">
+          <span><span className="block text-xs font-semibold">Clips de video de la canción</span><span className="block text-xs" style={{ color: 'var(--m)' }}>De vez en cuando, unos segundos del video real sobre la carátula (sin sonido). Gasta algo de datos.</span></span>
+          <span className="w-11 h-6 rounded-full relative shrink-0" style={{ background: clips ? 'var(--a)' : 'var(--bd)' }}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: clips ? 22 : 2 }} /></span>
         </button>
         <p className="text-xs mb-1 font-semibold">Mini reproductor</p>
         <div className="flex gap-2">

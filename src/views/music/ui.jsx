@@ -10,7 +10,7 @@ export function SectionTitle({ title, sub, action, className = '' }) {
     <div className={`flex items-end justify-between gap-3 mb-3 ${className}`}>
       <div className="min-w-0">
         <h3 className="serif text-[2rem] sm:text-4xl font-semibold leading-none tracking-tight truncate">{title}</h3>
-        {!!sub && <p className="text-xs mt-1.5 truncate" style={{ color: 'var(--m)' }}>{sub}</p>}
+        {/* Sin subtítulo descriptivo: las secciones solo llevan el título (el parámetro `sub` se ignora a propósito) */}
       </div>
       {action}
     </div>
@@ -59,7 +59,7 @@ export function Shelf({ children, className = '' }) {
   return (
     <div className={`relative group/shelf ${className}`}>
       <div ref={ref} onScroll={measure}
-        className="flex gap-3.5 overflow-x-auto pb-2 -mx-5 px-5 lg:-mx-10 lg:px-10 snap-x snap-proximity overscroll-x-contain">
+        className="flex gap-4 overflow-x-auto pb-2 -mx-5 px-5 lg:-mx-10 lg:px-10 snap-x snap-proximity overscroll-x-contain">
         {children}
       </div>
       {edge.l && <button className={`${arrow} left-1`} onClick={() => go(-1)} aria-label="Anterior"><ChevronLeft size={20} /></button>}
@@ -72,8 +72,8 @@ export function Shelf({ children, className = '' }) {
 export function SquareCard({ art, title, sub, onClick, spinning, badge, active, playing, label }) {
   return (
     <button onClick={onClick} aria-label={label || `Abrir ${title}`}
-      className="snap-start w-[8.75rem] sm:w-[11rem] text-left shrink-0 group rounded-2xl focus-visible:outline-2 focus-visible:outline-[var(--a)] focus-visible:outline-offset-2">
-      <div className="relative w-[8.75rem] h-[8.75rem] sm:w-[11rem] sm:h-[11rem] rounded-2xl overflow-hidden shadow-lg transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]"
+      className="snap-start w-[10.25rem] sm:w-[12.5rem] text-left shrink-0 group rounded-2xl focus-visible:outline-2 focus-visible:outline-[var(--a)] focus-visible:outline-offset-2">
+      <div className="relative w-[10.25rem] h-[10.25rem] sm:w-[12.5rem] sm:h-[12.5rem] rounded-2xl overflow-hidden shadow-xl transition-transform group-hover:-translate-y-0.5 group-active:scale-[.97]"
         style={active ? { boxShadow: '0 0 0 2px var(--a)' } : undefined}>
         <Cover src={art} className="w-full h-full" iconSize={28} alt={title} />
         <span className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" aria-hidden="true">
@@ -89,8 +89,8 @@ export function SquareCard({ art, title, sub, onClick, spinning, badge, active, 
 
 /** Artista: foto real redonda + nombre (como Spotify). */
 export function ArtistBubble({ artist, onClick, size = 'md' }) {
-  const d = size === 'lg' ? 'w-[9.5rem] h-[9.5rem] sm:w-[11rem] sm:h-[11rem]' : 'w-[7.5rem] h-[7.5rem] sm:w-[9.5rem] sm:h-[9.5rem]';
-  const w = size === 'lg' ? 'w-[9.5rem] sm:w-[11rem]' : 'w-[7.5rem] sm:w-[9.5rem]';
+  const d = size === 'lg' ? 'w-[10.25rem] h-[10.25rem] sm:w-[12.5rem] sm:h-[12.5rem]' : 'w-[8.5rem] h-[8.5rem] sm:w-[10.5rem] sm:h-[10.5rem]';
+  const w = size === 'lg' ? 'w-[10.25rem] sm:w-[12.5rem]' : 'w-[8.5rem] sm:w-[10.5rem]';
   const [err, setErr] = useState(false);
   useEffect(() => { setErr(false); }, [artist?.art]);
   const initial = (String(artist?.name || '?').trim()[0] || '?').toUpperCase();
@@ -103,7 +103,7 @@ export function ArtistBubble({ artist, onClick, size = 'md' }) {
         <span className={`${d} mx-auto rounded-full grid place-items-center text-white text-4xl font-bold shadow-lg`}
           style={{ background: 'linear-gradient(135deg, var(--a), #312e81)' }}>{initial || <User />}</span>
       )}
-      <p className="text-[15px] font-semibold mt-2.5 line-clamp-2 leading-snug" title={artist?.name}>{artist?.name}</p>
+      <Marquee className="text-[15px] font-semibold mt-2.5 leading-snug">{artist?.name}</Marquee>
       <p className="text-[12px]" style={{ color: 'var(--m)' }}>Artista</p>
     </button>
   );
@@ -112,11 +112,11 @@ export function ArtistBubble({ artist, onClick, size = 'md' }) {
 /** Fila de canción estilo Spotify: n.º / carátula, título, artista, duración, ▶ y ⋮. */
 export function SongRow({ n, art, title, sub, duration, explicit, active, playing, loading, onPlay, onMenu, extra }) {
   return (
-    <div className={`group flex items-center gap-3 px-2 py-1.5 rounded-xl transition-colors ${active ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
+    <div className={`group flex items-center gap-3.5 px-2 py-2 rounded-2xl transition-colors ${active ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
       {n != null && <span className="w-6 text-center text-sm tabular-nums shrink-0" style={{ color: active ? 'var(--a)' : 'var(--m)' }}>{n}</span>}
       <button onClick={onPlay} className="relative shrink-0" aria-label={`Reproducir ${title}`}>
-        <Cover src={art} className="w-12 h-12 rounded-lg" alt={title} />
-        <span className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
+        <Cover src={art} className="w-14 h-14 rounded-xl" alt={title} />
+        <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/45 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
           {loading ? <Loader2 size={18} className="animate-spin" /> : active && playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
         </span>
       </button>

@@ -12,6 +12,7 @@ import LyricsPane from './fullplayer/LyricsPane';
 import QueuePane from './fullplayer/QueuePane';
 import MoreSheet from './fullplayer/MoreSheet';
 import CoverPicker from './fullplayer/CoverPicker';
+import ClipLayer from './ClipLayer';
 
 // Reproductor completo estilo Apple Music con dos presentaciones:
 //   Tema 1 («apple-1»): carátula inmersiva a pantalla completa que se funde con el fondo.
@@ -29,6 +30,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   const wide = useMedia('(min-width: 1024px)');
   const reduced = useReducedMotion();
   const [lyFont] = useStore('h_lyrics_font', 'apple');
+  const [clips] = useStore('h_clips', true); // clips de video de la canción (Ajustes)
   const [view, setView] = useState('player'); // móvil/tableta: player | lyrics | queue
   const [side, setSide] = useState('lyrics'); // escritorio: panel derecho
   const [hidden, setHidden] = useState(false); // controles ocultos (solo letra/cola)
@@ -121,7 +123,8 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
         <div className="absolute inset-0 flex gap-10 px-12 py-8">
           <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-6 max-w-[640px] mx-auto">
             <div style={{ width: cs, height: cs, borderRadius: T1 ? 22 : 16, overflow: 'hidden', boxShadow: T1 ? '0 30px 90px rgba(0,0,0,.55), 0 0 120px -10px rgba(255,255,255,.12)' : '0 24px 60px rgba(0,0,0,.45)', background: 'rgba(255,255,255,.1)', transition: `box-shadow .5s ${EASE}` }}>
-              {t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ animation: reduced ? 'none' : 'fpFade .6s ease both' }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>}
+              {t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ animation: reduced ? 'none' : (p.playing ? 'fpFade .6s ease both, fpKb 32s ease-in-out .6s infinite alternate' : 'fpFade .6s ease both') }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>}
+              <ClipLayer track={t} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} enabled={clips} />
             </div>
             <div className="w-full max-w-[520px] space-y-5">
               <MetaRow p={p} onMore={openMore} onArtist={goArtist} />
@@ -179,7 +182,8 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
         <div className="absolute z-20 overflow-hidden" style={{ ...coverStyle, transition: tr, WebkitMaskImage: maskV, maskImage: maskV, background: 'rgba(255,255,255,.1)' }} {...(inPlayer ? swipe : {})}>
           {mini
             ? <button onClick={() => setView('player')} aria-label="Volver al reproductor completo" className="block w-full h-full">{t.art ? <img src={t.art} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <Music2 className="m-auto" />}</button>
-            : (t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" draggable={false} className="w-full h-full object-cover" style={{ objectPosition: T1 ? 'center 30%' : 'center', animation: reduced ? 'none' : 'fpFade .6s ease both' }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>)}
+            : (t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" draggable={false} className="w-full h-full object-cover" style={{ objectPosition: T1 ? 'center 30%' : 'center', animation: reduced ? 'none' : (p.playing ? 'fpFade .6s ease both, fpKb 32s ease-in-out .6s infinite alternate' : 'fpFade .6s ease both') }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>)}
+        {inPlayer && <ClipLayer track={t} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} enabled={clips} />}
         </div>
 
         {/* Cabecera compacta (letra/cola): siempre visible aunque se oculten los controles */}
