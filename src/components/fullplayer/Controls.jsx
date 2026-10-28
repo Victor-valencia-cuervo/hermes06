@@ -1,4 +1,4 @@
-import { Loader2, Volume1, Volume2, VolumeX, MessageSquareQuote, Airplay, ListMusic, Star, MoreHorizontal } from 'lucide-react';
+import { Loader2, Volume1, Volume2, VolumeX, MessageSquareQuote, Airplay, ListMusic, Star, MoreHorizontal, Video } from 'lucide-react';
 import { useState } from 'react';
 import { fmtTime } from '../../lib/format';
 import Marquee from '../Marquee';
@@ -7,7 +7,7 @@ import { Slider, IconRew, IconFwd, IconPlay, IconPause, GlassBtn } from './ui';
 export const sourceLabel = (t) => (t?.source === 'Local' ? 'Local' : t?.source === 'Audius' ? 'Audius' : t?.source === 'YouTube' ? 'YouTube' : (t?.source || ''));
 
 /** Barra de progreso con tiempo transcurrido / restante. Se arrastra sin saltar la canción hasta soltar. */
-export function Progress({ p, bits, dur }) {
+export function Progress({ p, bits, dur, onVideo, videoOn }) {
   const [drag, setDrag] = useState(null);
   const cur = drag != null ? drag * dur : bits.tReal;
   const pct = dur > 0 ? Math.min(1, cur / dur) : 0;
@@ -17,7 +17,13 @@ export function Progress({ p, bits, dur }) {
         onInput={setDrag} onCommit={(n) => { p.seek(n * dur); setDrag(null); }} />
       <div className="mt-2 grid grid-cols-3 items-center text-[12px] tabular-nums" style={{ color: 'rgba(255,255,255,.62)' }}>
         <span>{fmtTime(cur)}</span>
-        <span className="justify-self-center text-[10px] font-bold tracking-wide px-1.5 py-[1px] rounded" style={{ background: 'rgba(255,255,255,.16)', color: 'rgba(255,255,255,.8)' }}>{p.resolving ? 'CARGANDO' : sourceLabel(p.track).toUpperCase()}</span>
+        {onVideo && p.track?.source === 'YouTube' && p.track?.videoId && !p.resolving ? (
+          <button onClick={onVideo} aria-pressed={!!videoOn} aria-label={videoOn ? 'Volver a la carátula' : 'Ver el video de la canción'} title={videoOn ? 'Volver a la carátula' : 'Ver el video'}
+            className="justify-self-center inline-flex items-center gap-1 text-[10px] font-bold tracking-wide px-2 py-[3px] rounded-full active:scale-95 transition"
+            style={videoOn ? { background: '#fff', color: '#111' } : { background: 'rgba(255,255,255,.22)', color: '#fff' }}><Video size={11} />YOUTUBE</button>
+        ) : (
+          <span className="justify-self-center text-[10px] font-bold tracking-wide px-1.5 py-[1px] rounded" style={{ background: 'rgba(255,255,255,.16)', color: 'rgba(255,255,255,.8)' }}>{p.resolving ? 'CARGANDO' : sourceLabel(p.track).toUpperCase()}</span>
+        )}
         <span className="justify-self-end">{dur ? `-${fmtTime(Math.max(0, dur - cur))}` : '--:--'}</span>
       </div>
     </div>
@@ -50,21 +56,13 @@ export function VolumeRow({ p }) {
 }
 
 /** Fila inferior: letra · dispositivos · cola (iconos iguales a Apple Music). */
-export function Toolbar({ view, onView, p, toast }) {
+export function Toolbar({ view, onView, p, onCast }) {
   const item = (on) => ({ background: on ? 'rgba(255,255,255,.9)' : 'transparent', color: on ? '#111' : 'rgba(255,255,255,.88)' });
-  const cast = () => {
-    const t = p.track;
-    if (t?.source === 'YouTube') { toast?.('YouTube no deja enviar el audio a otros dispositivos desde la web', Airplay); return; }
-    const el = p.audio?.current;
-    if (el && el.remote && typeof el.remote.prompt === 'function') el.remote.prompt().catch(() => {});
-    else toast?.('Tu navegador no permite enviar el audio a otro dispositivo', Airplay);
-  };
-  const canCast = p.track?.source !== 'YouTube' && !!(p.audio?.current && p.audio.current.remote);
   const cls = 'min-w-[52px] min-h-[44px] px-4 rounded-full grid place-items-center active:scale-90 transition';
   return (
     <div className="flex items-center justify-between px-3">
       <button onClick={() => onView('lyrics')} aria-pressed={view === 'lyrics'} aria-label={view === 'lyrics' ? 'Cerrar la letra' : 'Ver la letra'} className={cls} style={item(view === 'lyrics')}><MessageSquareQuote size={22} /></button>
-      <button onClick={cast} aria-label="Enviar a otro dispositivo" title={canCast ? 'Enviar a otro dispositivo' : 'No disponible con esta fuente'} className={cls} style={{ ...item(false), opacity: canCast ? 1 : 0.55 }}><Airplay size={22} /></button>
+      <button onClick={onCast} aria-label="Enviar a otro dispositivo" title="Enviar a otro dispositivo" className={cls} style={item(false)}><Airplay size={22} /></button>
       <button onClick={() => onView('queue')} aria-pressed={view === 'queue'} aria-label={view === 'queue' ? 'Cerrar la cola' : `Cola, ${p.queue.length} canciones`} className={cls} style={item(view === 'queue')}><ListMusic size={22} /></button>
     </div>
   );

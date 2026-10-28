@@ -23,7 +23,7 @@ function wordsOf(line, nextT) {
   return parts.map((x) => { const t = t0 + (dur * acc) / total; acc += x.length + 1; return { x, t }; });
 }
 
-export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bottomPad = 24, fadePx = 0 }) {
+export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bottomPad = 24, fadePx = 0, big = false }) {
   const box = useRef(null);
   const els = useRef([]);
   const userScroll = useRef(0);
@@ -32,7 +32,7 @@ export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bot
   const synced = lrc?.state === 'ok' && lines.length > 0;
   const serif = fontKey === 'hermes';
   const font = serif ? SERIF : FONT;
-  const size = serif ? 'clamp(30px, 8.4vw, 42px)' : 'clamp(26px, 7.2vw, 36px)';
+  const size = big ? (serif ? 'clamp(34px, 3.6vw, 58px)' : 'clamp(30px, 3.2vw, 52px)') : serif ? 'clamp(30px, 8.4vw, 42px)' : 'clamp(26px, 7.2vw, 36px)';
 
   // Sigue la letra: la línea actual queda suavemente centrada en el tercio superior (~32%)
   useEffect(() => {
@@ -71,8 +71,8 @@ export default function LyricsPane({ p, bits, fontKey = 'apple', onEmptyTap, bot
 
   return (
     <div ref={box} onClick={tapBackground} onWheel={pauseAutoScroll} onTouchMove={pauseAutoScroll}
-      className="fp-scroll absolute inset-0 overflow-y-auto px-6 select-none" aria-label="Letra"
-      style={{ paddingTop: '1.2rem', paddingBottom: bottomPad, transition: 'padding-bottom .4s cubic-bezier(.32,.72,0,1)', maskImage: mask, WebkitMaskImage: mask, fontFamily: font }}>
+      className={`fp-scroll absolute inset-0 overflow-y-auto select-none ${big ? 'px-4' : 'px-6'}`} aria-label="Letra"
+      style={{ paddingTop: big ? '30vh' : '1.2rem', paddingBottom: big ? Math.max(bottomPad, 160) : bottomPad, transition: 'padding-bottom .4s cubic-bezier(.32,.72,0,1)', maskImage: mask, WebkitMaskImage: mask, fontFamily: font }}>
 
       {(!lrc || lrc.state === 'loading') && (
         <div className="pt-20 text-center text-white" role="status">

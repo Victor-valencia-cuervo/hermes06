@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Music2 } from 'lucide-react';
+import { Airplay, ChevronDown, ListMusic, MessageSquareQuote, Music2, Repeat, Repeat1, Shuffle } from 'lucide-react';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import useArtColors from '../hooks/useArtColors';
 import useStore from '../hooks/useStore';
 import { usePlayerBits } from './fullplayer/bits';
-import { Backdrop, FP_CSS, FONT, useMedia, useReducedMotion, Sheet } from './fullplayer/ui';
+import { Backdrop, FP_CSS, FONT, useMedia, useReducedMotion, IconRew, IconFwd, IconPlay, IconPause } from './fullplayer/ui';
 import { Progress, Transport, VolumeRow, Toolbar, MetaRow } from './fullplayer/Controls';
 import LyricsPane from './fullplayer/LyricsPane';
 import QueuePane from './fullplayer/QueuePane';
 import MoreSheet from './fullplayer/MoreSheet';
 import CoverPicker from './fullplayer/CoverPicker';
 import ClipLayer from './ClipLayer';
+import VideoLayer from './VideoLayer';
+import CastSheet from './fullplayer/CastSheet';
 
 // Reproductor completo estilo Apple Music con dos presentaciones:
 //   Tema 1 («apple-1»): carátula inmersiva a pantalla completa que se funde con el fondo.
@@ -27,14 +29,16 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   const nav = useNavigate();
   const bits = usePlayerBits(p, toast, onCloseProp);
   const colors = useArtColors(t?.art);
-  const wide = useMedia('(min-width: 1024px)');
+  // PC y tableta en horizontal: carátula y controles a la izquierda, letra grande a la derecha
+  const wide = useMedia('(min-width: 1024px) and (min-height: 480px), (min-width: 700px) and (min-height: 520px) and (orientation: landscape)');
   const reduced = useReducedMotion();
   const [lyFont] = useStore('h_lyrics_font', 'apple');
   const [clips] = useStore('h_clips', true); // clips de video de la canción (Ajustes)
   const [view, setView] = useState('player'); // móvil/tableta: player | lyrics | queue
   const [side, setSide] = useState('lyrics'); // escritorio: panel derecho
   const [hidden, setHidden] = useState(false); // controles ocultos (solo letra/cola)
-  const [sheet, setSheet] = useState(null); // 'more' | 'cover'
+  const [sheet, setSheet] = useState(null); // 'more' | 'cover' | 'cast'
+  const [videoMode, setVideoMode] = useState(false); // ver el video en lugar de la carátula (sin parar la canción)
   const [bh, setBh] = useState(300);
   const blockRef = useRef(null);
   const colRef = useRef(null);
@@ -71,6 +75,14 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   }, [bits.closing]);
 
   useEffect(() => { setHidden(false); }, [view]);
+  // En la letra, si pasan más de 4 s sin tocar nada, los controles bajan solos (tocar un vacío o la pista los trae de vuelta).
+  const hideT = useRef(null);
+  const bump = () => {
+    clearTimeout(hideT.current);
+    if (view !== 'lyrics' || hidden || sheet || wide) return;
+    hideT.current = setTimeout(() => setHidden(true), 4000);
+  };
+  useEffect(() => { bump(); return () => clearTimeout(hideT.current); }, [view, hidden, sheet, wide]); // eslint-disable-line react-hooks/exhaustive-deps
   // Altura real del bloque de controles: la letra/cola deja ese espacio libre abajo.
   useEffect(() => {
     const el = blockRef.current; if (!el || typeof ResizeObserver === 'undefined') return undefined;
@@ -94,6 +106,17 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
     nav(`/musica/resultados?q=${encodeURIComponent(a)}`);
   };
   const openMore = () => setSheet('more');
+  const openCast = () => setSheet('cast');
+  const canVideo = t?.source === 'YouTube' && !!t?.videoId;
+  const videoOn = videoMode && canVideo;
+  const toggleVideo = () => setVideoMode((v) => !v);
+  const getT = () => p.getCurrentTime?.() || p.time?.cur || 0;
+  const videoFail = () => { setVideoMode(false); toast?.('YouTube no deja ver este video aquí', Music2); };
+  const sheets = (onQueue) => (<>
+    {sheet === 'more' && <MoreSheet p={p} toast={toast} bits={bits} theme={theme} setTheme={setTheme} onClose={() => setSheet(null)} onQueue={onQueue} onCover={() => setSheet('cover')} onCloseAll={bits.onClose} />}
+    {sheet === 'cover' && <CoverPicker p={p} toast={toast} onClose={() => setSheet(null)} />}
+    {sheet === 'cast' && <CastSheet p={p} toast={toast} onClose={() => setSheet(null)} />}
+  </>);
 
   // Deslizar hacia abajo para cerrar (zona del asa y de la carátula).
   const sw = useRef(null);
@@ -112,42 +135,52 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
     borderRadius: dy || bits.closing ? '24px 24px 0 0' : 0,
   };
 
-  // ============ ESCRITORIO: carátula + controles a la izquierda, letra/cola a la derecha ============
+  // ============ PC / TABLETA HORIZONTAL (como Apple Music en iPad) ============
+  // Izquierda: carátula grande + título + progreso + controles + volumen. Derecha: letra grande sin caja.
   if (wide) {
-    const cs = T1 ? 'min(52vh, 34vw)' : 'min(44vh, 30vw)';
+    const cs = T1 ? 'min(50vh, 36vw)' : 'min(46vh, 34vw)';
+    const tool = (on) => ({ background: on ? 'rgba(255,255,255,.9)' : 'transparent', color: on ? '#111' : 'rgba(255,255,255,.9)' });
+    const tcls = 'w-12 h-12 rounded-2xl grid place-items-center active:scale-90 transition hover:bg-white/15';
+    const side2 = (id) => setSide((cur) => (cur === id ? 'lyrics' : id));
+    const RepIcon = p.repeat === 'one' ? Repeat1 : Repeat;
+    const small = 'grid place-items-center active:scale-90 transition w-10 h-10 rounded-full';
     return (
       <div className={`fp-root fixed inset-0 z-40 overflow-hidden ${reduced ? 'fp-rm' : ''}`} style={rootStyle} role="dialog" aria-label="Reproductor completo">
         <style>{FP_CSS}</style>
         <Backdrop art={t.art} colors={colors} reduced={reduced} />
-        <button onClick={bits.onClose} aria-label="Cerrar el reproductor" className="absolute top-5 left-6 z-20 w-11 h-11 rounded-full grid place-items-center active:scale-90 transition hover:bg-white/20" style={{ background: 'rgba(255,255,255,.14)' }}><ChevronDown size={24} /></button>
-        <div className="absolute inset-0 flex gap-10 px-12 py-8">
-          <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-6 max-w-[640px] mx-auto">
-            <div style={{ width: cs, height: cs, borderRadius: T1 ? 22 : 16, overflow: 'hidden', boxShadow: T1 ? '0 30px 90px rgba(0,0,0,.55), 0 0 120px -10px rgba(255,255,255,.12)' : '0 24px 60px rgba(0,0,0,.45)', background: 'rgba(255,255,255,.1)', transition: `box-shadow .5s ${EASE}` }}>
+        <button onClick={bits.onClose} aria-label="Cerrar el reproductor" className="absolute top-0 left-1/2 -translate-x-1/2 z-30 w-24 h-9 grid place-items-center"><span className="block w-10 h-[5px] rounded-full" style={{ background: 'rgba(255,255,255,.5)' }} /></button>
+        <button onClick={bits.onClose} aria-label="Cerrar el reproductor" className="absolute top-4 left-5 z-30 w-10 h-10 rounded-full grid place-items-center active:scale-90 transition hover:bg-white/20" style={{ background: 'rgba(255,255,255,.14)' }}><ChevronDown size={22} /></button>
+        <div className="absolute inset-0 flex items-center gap-[4vw] px-[5vw] pt-10 pb-20">
+          <div className="shrink-0 flex flex-col gap-4" style={{ width: cs }}>
+            <div className="relative overflow-hidden" style={{ width: cs, height: cs, borderRadius: T1 ? 20 : 14, boxShadow: T1 ? '0 30px 90px rgba(0,0,0,.55), 0 0 120px -10px rgba(255,255,255,.12)' : '0 24px 60px rgba(0,0,0,.45)', background: 'rgba(255,255,255,.1)' }}>
               {t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ animation: reduced ? 'none' : (p.playing ? 'fpFade .6s ease both, fpKb 32s ease-in-out .6s infinite alternate' : 'fpFade .6s ease both') }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>}
-              <ClipLayer track={t} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} enabled={clips} />
+              {videoOn ? <VideoLayer key={t.videoId} videoId={t.videoId} playing={p.playing} getTime={getT} onFail={videoFail} /> : <ClipLayer track={t} playing={p.playing} getTime={getT} enabled={clips} />}
             </div>
-            <div className="w-full max-w-[520px] space-y-5">
-              <MetaRow p={p} onMore={openMore} onArtist={goArtist} />
-              <Progress p={p} bits={bits} dur={dur} />
-              <Transport p={p} />
-              <VolumeRow p={p} />
+            <MetaRow p={p} onMore={openMore} onArtist={goArtist} />
+            <Progress p={p} bits={bits} dur={dur} onVideo={canVideo ? toggleVideo : undefined} videoOn={videoOn} />
+            <div className="flex items-center justify-between">
+              <button onClick={p.toggleShuffle} aria-pressed={!!p.shuffle} aria-label="Orden aleatorio" className={small} style={{ color: p.shuffle ? '#fff' : 'rgba(255,255,255,.55)', background: p.shuffle ? 'rgba(255,255,255,.2)' : 'transparent' }}><Shuffle size={18} /></button>
+              <div className="flex items-center gap-6">
+                <button onClick={p.prev} aria-label="Anterior" className="grid place-items-center active:scale-90 transition w-14 h-14"><IconRew s={38} /></button>
+                <button onClick={p.toggle} aria-label={p.playing ? 'Pausar' : 'Reproducir'} className="grid place-items-center active:scale-90 transition w-16 h-16">{p.playing ? <IconPause s={54} /> : <IconPlay s={54} />}</button>
+                <button onClick={() => p.next(false)} aria-label="Siguiente" className="grid place-items-center active:scale-90 transition w-14 h-14"><IconFwd s={38} /></button>
+              </div>
+              <button onClick={p.cycleRepeat} aria-pressed={p.repeat !== 'off'} aria-label="Repetir" className={small} style={{ color: p.repeat !== 'off' ? '#fff' : 'rgba(255,255,255,.55)', background: p.repeat !== 'off' ? 'rgba(255,255,255,.2)' : 'transparent' }}><RepIcon size={18} /></button>
             </div>
+            <VolumeRow p={p} />
           </div>
-          <div className="w-[44%] max-w-[560px] min-w-[340px] my-8 rounded-[28px] overflow-hidden flex flex-col" style={{ background: 'rgba(0,0,0,.22)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,.1)' }}>
-            <div className="flex gap-2 p-3 shrink-0" role="tablist">
-              {[['lyrics', 'Letra'], ['queue', 'Cola']].map(([id, label]) => (
-                <button key={id} role="tab" aria-selected={side === id} onClick={() => setSide(id)} className="px-5 min-h-[40px] rounded-full text-[14px] font-semibold transition" style={side === id ? { background: '#fff', color: '#111' } : { background: 'rgba(255,255,255,.14)' }}>{label}</button>
-              ))}
-            </div>
-            <div className="relative flex-1 min-h-0">
-              {side === 'lyrics'
-                ? <LyricsPane p={p} bits={bits} fontKey={lyFont} bottomPad={40} />
-                : <QueuePane p={p} toast={toast} bottomPad={40} />}
-            </div>
+          <div className="relative flex-1 min-w-0 h-full">
+            {side === 'lyrics'
+              ? <LyricsPane p={p} bits={bits} fontKey={lyFont} big bottomPad={120} />
+              : <QueuePane p={p} toast={toast} bottomPad={120} />}
           </div>
         </div>
-        {sheet === 'more' && <MoreSheet p={p} toast={toast} bits={bits} theme={theme} setTheme={setTheme} onClose={() => setSheet(null)} onQueue={() => setSide('queue')} onCover={() => setSheet('cover')} onCloseAll={bits.onClose} />}
-        {sheet === 'cover' && <CoverPicker p={p} toast={toast} onClose={() => setSheet(null)} />}
+        <button onClick={openCast} aria-label="Enviar a otro dispositivo" title="Enviar a otro dispositivo" className={`${tcls} absolute left-[5vw] bottom-5 z-20`} style={tool(false)}><Airplay size={22} /></button>
+        <div className="absolute right-[4vw] bottom-5 z-20 flex items-center gap-1">
+          <button onClick={() => side2('lyrics')} aria-pressed={side === 'lyrics'} aria-label="Letra" className={tcls} style={tool(side === 'lyrics')}><MessageSquareQuote size={22} /></button>
+          <button onClick={() => side2('queue')} aria-pressed={side === 'queue'} aria-label={`Cola, ${p.queue.length} canciones`} className={tcls} style={tool(side === 'queue')}><ListMusic size={22} /></button>
+        </div>
+        {sheets(() => setSide('queue'))}
       </div>
     );
   }
@@ -158,7 +191,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   const inPlayer = view === 'player';
   const mini = !inPlayer;
   const coverStyle = mini
-    ? { left: 20, top: `calc(${SAFE_TOP} + 14px)`, width: 46, height: 46, borderRadius: 8, '--fade': '0%', boxShadow: '0 4px 14px rgba(0,0,0,.35)' }
+    ? { left: 16, top: `calc(${SAFE_TOP} + 14px)`, width: 52, height: 52, borderRadius: 9, '--fade': '0%', boxShadow: '0 4px 14px rgba(0,0,0,.35)' }
     : T1
       ? { left: 0, top: 0, width: '100%', height: 'min(62dvh, 720px)', borderRadius: 0, '--fade': '34%', boxShadow: 'none' }
       : { left: `calc(50% - ${cw / 2}px)`, top: `calc(${SAFE_TOP} + 28px + ${Math.max(0, (col.h - bh - 36 - cw) / 2)}px)`, width: cw, height: cw, borderRadius: 20, '--fade': '0%', boxShadow: '0 24px 60px rgba(0,0,0,.45)' };
@@ -167,14 +200,15 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
   const controlsHidden = mini && hidden;
 
   return (
-    <div className={`fp-root fixed inset-0 z-40 overflow-hidden ${reduced ? 'fp-rm' : ''}`} style={rootStyle} role="dialog" aria-label="Reproductor completo">
+    <div className={`fp-root fixed inset-0 z-40 overflow-hidden ${reduced ? 'fp-rm' : ''}`} style={rootStyle} role="dialog" aria-label="Reproductor completo"
+      onPointerDown={bump} onPointerMove={bump} onWheel={bump} onTouchMove={bump} onKeyDown={bump}>
       <style>{FP_CSS}</style>
       <Backdrop art={t.art} colors={colors} reduced={reduced} />
       {/* Degradado de lectura bajo los controles: de borde a borde (no se corta en tabletas) */}
       <div aria-hidden="true" className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: bh + 70, opacity: controlsHidden ? 0 : 1, transition: reduced ? 'none' : 'opacity .35s', background: 'linear-gradient(180deg, transparent, rgba(0,0,0,.3) 45%)' }} />
       <div ref={colRef} className="absolute inset-0 mx-auto w-full max-w-[560px]">
         {/* Asa: tocar o deslizar cierra */}
-        <div className="absolute top-0 inset-x-0 z-30 h-9 grid place-items-center touch-none" style={{ paddingTop: SAFE_TOP }} {...swipe}>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 z-30 h-9 grid place-items-center touch-none" style={{ paddingTop: SAFE_TOP }} {...swipe}>
           <button onClick={bits.onClose} aria-label="Cerrar el reproductor" className="w-12 h-6 grid place-items-center"><span className="block w-10 h-[5px] rounded-full" style={{ background: 'rgba(255,255,255,.5)' }} /></button>
         </div>
 
@@ -183,17 +217,17 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
           {mini
             ? <button onClick={() => setView('player')} aria-label="Volver al reproductor completo" className="block w-full h-full">{t.art ? <img src={t.art} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <Music2 className="m-auto" />}</button>
             : (t.art ? <img key={t.art} src={t.art} alt={`Carátula de ${t.title}`} referrerPolicy="no-referrer" draggable={false} className="w-full h-full object-cover" style={{ objectPosition: T1 ? 'center 30%' : 'center', animation: reduced ? 'none' : (p.playing ? 'fpFade .6s ease both, fpKb 32s ease-in-out .6s infinite alternate' : 'fpFade .6s ease both') }} /> : <div className="w-full h-full grid place-items-center"><Music2 size={48} className="text-white/60" /></div>)}
-        {inPlayer && <ClipLayer track={t} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} enabled={clips} />}
+        {inPlayer && (videoOn ? <VideoLayer key={t.videoId} videoId={t.videoId} playing={p.playing} getTime={getT} onFail={videoFail} /> : <ClipLayer track={t} playing={p.playing} getTime={getT} enabled={clips} />)}
         </div>
 
         {/* Cabecera compacta (letra/cola): siempre visible aunque se oculten los controles */}
-        <div className="absolute z-30 flex items-center" style={{ left: 78, right: 16, top: `calc(${SAFE_TOP} + 14px)`, height: 46, opacity: mini ? 1 : 0, pointerEvents: mini ? 'auto' : 'none', transform: mini ? 'none' : 'translateY(-6px)', transition: reduced ? 'none' : `opacity .35s, transform .45s ${EASE}` }} aria-hidden={!mini}>
+        <div className="absolute z-30 flex items-center" style={{ left: 82, right: 16, top: `calc(${SAFE_TOP} + 14px)`, height: 52, opacity: mini ? 1 : 0, pointerEvents: mini ? 'auto' : 'none', transform: mini ? 'none' : 'translateY(-6px)', transition: reduced ? 'none' : `opacity .35s, transform .45s ${EASE}` }} aria-hidden={!mini}>
           <div className="w-full"><MetaRow p={p} onMore={openMore} onArtist={goArtist} compact /></div>
         </div>
 
         {/* Contenido de letra / cola con mayor altura disponible */}
         {mini && (
-          <div key={view} className="absolute inset-x-0 bottom-0" style={{ top: `calc(${SAFE_TOP} + 68px)`, animation: reduced ? 'none' : 'fpUp .45s ease both' }}>
+          <div key={view} className="absolute inset-x-0 bottom-0" style={{ top: `calc(${SAFE_TOP} + 74px)`, animation: reduced ? 'none' : 'fpUp .45s ease both' }}>
             {view === 'lyrics'
               ? <LyricsPane p={p} bits={bits} fontKey={lyFont} onEmptyTap={() => setHidden((h) => !h)} bottomPad={controlsHidden ? 56 : bh + 16} fadePx={controlsHidden ? 0 : bh} />
               : <QueuePane p={p} toast={toast} onEmptyTap={() => setHidden((h) => !h)} bottomPad={controlsHidden ? 56 : bh + 16} fadePx={controlsHidden ? 0 : bh} />}
@@ -207,10 +241,10 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
           <div style={{ maxHeight: inPlayer ? 90 : 0, opacity: inPlayer ? 1 : 0, overflow: 'hidden', transition: reduced ? 'none' : `max-height .45s ${EASE}, opacity .3s`, marginBottom: inPlayer ? 14 : 0 }} aria-hidden={!inPlayer}>
             <MetaRow p={p} onMore={openMore} onArtist={goArtist} />
           </div>
-          <Progress p={p} bits={bits} dur={dur} />
+          <Progress p={p} bits={bits} dur={dur} onVideo={canVideo ? toggleVideo : undefined} videoOn={videoOn} />
           <div className="my-0.5"><Transport p={p} /></div>
           <div className="mb-2"><VolumeRow p={p} /></div>
-          <Toolbar view={view} onView={goView} p={p} toast={toast} />
+          <Toolbar view={view} onView={goView} p={p} onCast={openCast} />
         </div>
 
         {/* Pista para recuperar los controles cuando están ocultos */}
@@ -219,8 +253,7 @@ export default function FullPlayer({ p, toast, theme = 'apple-1', setTheme, onCl
         )}
       </div>
 
-      {sheet === 'more' && <MoreSheet p={p} toast={toast} bits={bits} theme={theme} setTheme={setTheme} onClose={() => setSheet(null)} onQueue={() => setView('queue')} onCover={() => setSheet('cover')} onCloseAll={bits.onClose} />}
-      {sheet === 'cover' && <CoverPicker p={p} toast={toast} onClose={() => setSheet(null)} />}
+      {sheets(() => setView('queue'))}
     </div>
   );
 }

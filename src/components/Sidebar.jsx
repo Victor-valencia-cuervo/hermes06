@@ -9,22 +9,22 @@ function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini }) {
   const items = ids ? NAV.filter((n) => ids.includes(n.id)) : NAV;
   return (
     <>
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <span className="flex items-center gap-2.5">
           <img src="icon/Roxy-img-white.png" alt="Roxy" className="w-9 h-9 rounded-xl object-cover" draggable={false} />
           <span className="serif text-2xl tracking-[0.3em] uppercase" style={{ color: 'var(--a)' }}>{APP_NAME}</span>
         </span>
         {close && <button className="ico-btn" onClick={close} aria-label="Cerrar menú"><X size={20} /></button>}
       </div>
-      <nav className="flex-1 space-y-1" aria-label="Principal">
+      <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1 -mx-2 px-2 pb-2" style={{ scrollbarWidth: 'thin' }} aria-label="Principal">
         {items.map(({ id, label, I }) => (
           <Link key={id} to={PATHS[id]} onClick={() => close?.()} aria-current={view === id ? 'page' : undefined}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm text-left transition ${view === id ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
+            className={`w-full flex items-center gap-3 px-4 py-2.5 [@media(min-height:760px)]:py-3 rounded-2xl text-sm text-left transition ${view === id ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
             <I size={18} strokeWidth={1.6} />{label}
           </Link>
         ))}
       </nav>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0 pt-3 border-t" style={{ borderColor: 'var(--bd)' }}>
         <p className="text-[10px] tracking-widest uppercase" style={{ color: 'var(--m)' }}>v5.0</p>
         <span className="flex items-center">
           {mini?.music && (
@@ -60,7 +60,7 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
   const moreActive = rest.includes(view);
   return (
     <>
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 border-r" style={{ background: 'var(--s)', borderColor: 'var(--bd)' }}>
+      <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 pb-4 border-r sticky top-0 self-start overflow-hidden" style={{ background: 'var(--s)', borderColor: 'var(--bd)', height: '100dvh', maxHeight: '100vh' }}>
         <NavList view={view} setView={setView} petsOn={petsOn} onTogglePets={onTogglePets} mini={mini} />
       </aside>
       <div className={`lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${menu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenu(false)} aria-hidden="true" />

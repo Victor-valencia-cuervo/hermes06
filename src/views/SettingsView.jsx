@@ -6,11 +6,14 @@ import { ACCENTS } from '../data/constants';
 import { DL_TOOLS } from '../lib/dltools';
 import useStore from '../hooks/useStore';
 import PetsSettings from '../pets/PetsSettings';
+import { WidgetManager } from '../widgets/WidgetUI';
+import { useNavigate } from 'react-router-dom';
 import { validateLBToken } from '../services/scrobble';
 import { loginSpotify, disconnectSpotify, spotifyConnected } from '../services/spotify';
 
 export default function SettingsView({ dark, setDark, accent, setAccent, name, setName, pets, setPets, toast, autoLand, setAutoLand, wxAlerts, setWxAlerts, auth, cloud }) {
   const user = auth?.user || null;
+  const navigate = useNavigate();
   const [dlTool, setDlTool] = useStore('h_dl_tool', 'savefrom');
   const [lbToken, setLbToken] = useStore('h_lb_token', '');
   const [lbState, setLbState] = useState(null); // null | checking | ok | bad
@@ -65,6 +68,7 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
           </div>
         )}
       </div>
+      <WidgetManager onEditHome={() => navigate('/?editar=1')} />
       <div className="card flex items-center justify-between">
         <span className="flex items-center gap-3 text-sm">{dark ? <Moon size={18} /> : <Sun size={18} />}Tema oscuro</span>
         <button onClick={() => setDark(!dark)} role="switch" aria-checked={dark} aria-label="Tema oscuro" className="w-12 h-7 rounded-full relative transition-colors" style={{ background: dark ? 'var(--a)' : 'var(--s2)', border: '1px solid var(--bd)' }}>

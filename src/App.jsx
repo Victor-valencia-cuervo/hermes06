@@ -267,7 +267,7 @@ export default function App() {
 
   const viewsEl = (
     <Routes>
-      <Route path="/" element={<HomeView {...{ now, greeting, quote, weather, react, reminders, place }} onPoke={poke} onOpenWeather={() => setView('weather')} />} />
+      <Route path="/" element={<HomeView {...{ now, greeting, quote, weather, react, reminders, place }} playing={player.playing || radio.playing} idle={idle} onPoke={poke} onOpenWeather={() => setView('weather')} />} />
       <Route path="/clima" element={<WeatherView {...{ place, setPlace, unit, setUnit, toast }} />} />
       <Route path="/musica/*" element={<MusicView p={player} toast={toast} local={local} auth={auth} onOpenRoom={openRoom} />} />
       <Route path="/perfil" element={<ProfileView p={player} toast={toast} name={name} setName={setName} auth={auth} cloud={cloud} />} />
