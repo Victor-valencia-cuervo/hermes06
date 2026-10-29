@@ -2,7 +2,7 @@
 
 <img src="public/icon/hermes-icon.png" alt="Hermes" width="120" />
 
-# ⚡ Hermes
+#  Hermes
 
 ### Tu panel personal: música, radios, mascotas, clima y más
 
@@ -14,7 +14,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-cloud-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![PWA](https://img.shields.io/badge/PWA-instalable-5A0FC8)](https://web.dev/progressive-web-apps/)
 
-**🌐 Demo:** https://hermes06.pages.dev/
+** Demo:** https://hermes06.pages.dev/
 
 [Características](#-características) · [Instalación](#-instalación) · [Configuración](#️-configuración) · [Uso](#-uso) · [Despliegue](#-despliegue)
 
@@ -22,7 +22,7 @@
 
 ---
 
-## ✨ Características
+##  Características
 
 ### 🎵 Música
 - **Reproductor local** — lee tus archivos de audio (MP3, etc.) con carátulas, metadatos y modo offline.
@@ -36,23 +36,23 @@
 ### 📻 Radios del mundo
 - Catálogo de radios online, barra mini + vista completa, historial y favoritas.
 
-### 🐾 Mascotas virtuales
+###  Mascotas virtuales
 - +40 mascotas (Rick, Morty, dragones, ninja, stitch…), estados de ánimo, frases, efectos, Pet Studio y modo celebración.
 
-### 🌦️ Clima + 🌅 Zen + 🧰 Vida diaria
+###  Clima +  Zen +  Vida diaria
 - **Clima** con alertas, saludo según hora y fondo reactivo.
 - **Zen** con videos relajantes, **Finanzas**, **Notas** con colores, **Recordatorios** con notificaciones, **Atajos** personalizables y **Herramientas**.
 
-### 👥 Comunidad
+###  Comunidad
 - Perfiles, salas de chat en tiempo real, playlists de sala y presencia (quién está en línea).
 - Sincronización en la nube con **Supabase** (opcional: sin claves funciona 100% local).
 
-### 📲 PWA
+###  PWA
 - Instalable en Android / iOS / escritorio, icono propio, splash, service worker y modo offline.
 
 ---
 
-## 🧱 Stack
+##  Stack
 
 | Capa | Tecnología |
 |---|---|
@@ -65,7 +65,7 @@
 
 ---
 
-## 🚀 Instalación
+##  Instalación
 
 ```bash
 npm install
@@ -122,7 +122,7 @@ Ejecuta en tu proyecto el SQL de `supabase/` en orden:
 
 ---
 
-## 📁 Estructura
+##  Estructura
 
 ```
 ├── index.html              # SEO, OG, PWA, boot de emergencia
@@ -142,7 +142,7 @@ Ejecuta en tu proyecto el SQL de `supabase/` en orden:
 
 ---
 
-## ☁️ Despliegue
+##  Despliegue
 
 **Cloudflare Pages** (actual: `hermes06.pages.dev`):
 ```bash
@@ -154,7 +154,7 @@ Variables de entorno → configúralas en el panel de Pages (las mismas `VITE_*`
 
 ---
 
-## 🔒 Privacidad
+## Privacidad
 
 - Local-first: tu música y datos viven en tu dispositivo.
 - Las claves `VITE_*` son públicas por diseño; **jamás** pongas secrets, Bearer Tokens ni `service_role` en el frontend.
@@ -162,7 +162,7 @@ Variables de entorno → configúralas en el panel de Pages (las mismas `VITE_*`
 
 ---
 
-## 📜 Licencia
+##  Licencia
 
 Proyecto privado — todos los derechos reservados. Si lo haces público, agrega aquí tu licencia (ej. MIT).
 
@@ -178,7 +178,7 @@ Hecho con 💜 por **Víctor Valencia** · Hermes v4.1.0
 
 ---
 
-## 📱 Versión móvil (APK Android)
+##  Versión móvil (APK Android)
 
 Hermes empaquetado con **Capacitor**. Mismo código web, sin login obligatorio (Supabase/Google es opcional).
 
