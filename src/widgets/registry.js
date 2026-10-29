@@ -11,14 +11,14 @@ const LED_MODES = [['auto', 'Automático'], ['text', 'Texto'], ['bars', 'Barras'
 /** Catálogo de widgets del inicio. `kind: 'led'` = pantalla de puntos en un iframe; `kind: 'native'` = tarjeta de React.
  *  settings: campos que se editan (seg = botones, select = lista, toggle, text, range). */
 export const WIDGETS = {
-  saludo: { kind: 'native', name: 'Saludo y hora', icon: Sun, desc: 'Nombre de la app, día, hora y frase de saludo.', size: 2, multi: false, cfg: {}, settings: [] },
-  carita: { kind: 'native', name: 'Carita del día', icon: Smile, desc: 'La carita que reacciona a la música, la hora y el clima.', size: 1, multi: false, cfg: {}, settings: [] },
-  frase: { kind: 'native', name: 'Frase del día', icon: Quote, desc: 'Una frase para empezar el día.', size: 1, multi: false, cfg: {}, settings: [] },
-  dispositivo: { kind: 'native', name: 'Estado del dispositivo', icon: Cpu, desc: 'Batería, conexión, ping y memoria.', size: 2, multi: false, cfg: {}, settings: [] },
-  recordatorios: { kind: 'native', name: 'Próximos recordatorios', icon: AlarmClock, desc: 'Tus tres pendientes más cercanos.', size: 2, multi: false, cfg: {}, settings: [] },
+  saludo: { kind: 'native', name: 'Saludo y hora', icon: Sun, desc: 'Nombre de la app, día, hora y frase de saludo.', size: 'xl', multi: false, cfg: {}, settings: [] },
+  carita: { kind: 'native', name: 'Carita del día', icon: Smile, desc: 'La carita que reacciona a la música, la hora y el clima.', size: 'm', multi: false, cfg: {}, settings: [] },
+  frase: { kind: 'native', name: 'Frase del día', icon: Quote, desc: 'Una frase para empezar el día.', size: 'm', multi: false, cfg: {}, settings: [] },
+  dispositivo: { kind: 'native', name: 'Estado del dispositivo', icon: Cpu, desc: 'Batería, conexión, ping y memoria.', size: 'xl', multi: false, cfg: {}, settings: [] },
+  recordatorios: { kind: 'native', name: 'Próximos recordatorios', icon: AlarmClock, desc: 'Tus tres pendientes más cercanos.', size: 'xl', multi: false, cfg: {}, settings: [] },
 
   reloj: {
-    kind: 'led', html: relojHtml, aspect: '148 / 78', name: 'Reloj LED', icon: Clock3, size: 1, multi: false,
+    kind: 'led', html: relojHtml, aspect: '148 / 78', name: 'Reloj LED', icon: Clock3, size: 'm', multi: true,
     desc: 'Reloj circular de puntos con calendario del mes. Toca para ver solo el reloj o solo el calendario.',
     cfg: { mode: 'auto', fmt: 12, view: 'both' },
     settings: [
@@ -28,7 +28,7 @@ export const WIDGETS = {
     ],
   },
   clima: {
-    kind: 'led', html: climaHtml, aspect: '148 / 78', name: 'Clima LED', icon: CloudSun, size: 1, multi: false,
+    kind: 'led', html: climaHtml, aspect: '148 / 78', name: 'Clima LED', icon: CloudSun, size: 'm', multi: false,
     desc: 'El clima de tu ubicación en puntos: ahora, próximas horas y próximos días.',
     cfg: { view: 'auto', design: 'card', unit: 'app' },
     settings: [
@@ -38,7 +38,7 @@ export const WIDGETS = {
     ],
   },
   zen: {
-    kind: 'led', html: zenHtml, aspect: '1 / 1', square: true, name: 'Zen LED', icon: Flower2, size: 1, multi: false,
+    kind: 'led', html: zenHtml, aspect: '1 / 1', square: true, name: 'Zen LED', icon: Flower2, size: 'm', multi: true,
     desc: 'Dibujos pixel art animados. Elige uno fijo o que cambien solos cada cierto tiempo.',
     cfg: { scene: 'auto', every: 40, colorMode: 'original', style: 'dots' },
     settings: [
@@ -49,7 +49,7 @@ export const WIDGETS = {
     ],
   },
   mascota: {
-    kind: 'led', html: mascotaHtml, aspect: '1 / 1', name: 'Mascota de puntos', icon: Sparkles, size: 1, multi: false,
+    kind: 'led', html: mascotaHtml, aspect: '1 / 1', name: 'Mascota de puntos', icon: Sparkles, size: 'm', multi: false,
     desc: 'Una carita de puntos pequeñita con su diálogo y el clima. Cambia de cara con tu música, el clima, la hora y los avisos; se duerme si no haces nada.',
     cfg: { text: true, ring: 'normal', intensity: 'normal', hat: false, noLine: false, noDots: false, bored: true },
     settings: [
@@ -63,7 +63,7 @@ export const WIDGETS = {
     ],
   },
   pantalla: {
-    kind: 'led', html: pantallaHtml, aspect: '2 / 1', name: 'Pantalla LED', icon: Grid3x3, size: 2, multi: true,
+    kind: 'led', html: pantallaHtml, aspect: '2 / 1', name: 'Pantalla LED', icon: Grid3x3, size: 'xl', multi: true,
     desc: 'Matriz de puntos personalizable: texto, visualizador de música, corazón, Pac-Man… Puedes agregar varias.',
     cfg: { mode: 'auto', text: '¡HOLA! HERMES', speed: 28, color: 'app', scheme: 'norm', gain: 1.4 },
     settings: [
@@ -78,21 +78,26 @@ export const WIDGETS = {
 };
 export const ORDER_CATALOG = ['saludo', 'carita', 'frase', 'dispositivo', 'recordatorios', 'reloj', 'clima', 'zen', 'mascota', 'pantalla'];
 
+// Tamaños: muy pequeño · pequeño · normal · grande · muy grande (en el celular: 1/3 · 1/2 · fila completa)
+export const SIZES = [['xs', 'Muy pequeño'], ['s', 'Pequeño'], ['m', 'Normal'], ['l', 'Grande'], ['xl', 'Muy grande']];
+export const SIZE_KEYS = SIZES.map(([k]) => k);
+export const sizeLabel = (k) => (SIZES.find(([x]) => x === k) || SIZES[2])[1];
+
 let seq = 0;
 export const newId = (type) => `${type}-${Date.now().toString(36)}${(seq++).toString(36)}`;
 export const makeWidget = (type) => ({ id: newId(type), type, size: WIDGETS[type].size, cfg: { ...WIDGETS[type].cfg } });
 
 // Inicio original (antes de los widgets): saludo, carita + frase, dispositivo y recordatorios.
 export const DEFAULT_WIDGETS = [
-  { id: 'saludo-0', type: 'saludo', size: 2, cfg: {} },
-  { id: 'carita-0', type: 'carita', size: 1, cfg: {} },
-  { id: 'frase-0', type: 'frase', size: 1, cfg: {} },
-  { id: 'dispositivo-0', type: 'dispositivo', size: 2, cfg: {} },
-  { id: 'recordatorios-0', type: 'recordatorios', size: 2, cfg: {} },
+  { id: 'saludo-0', type: 'saludo', size: 'xl', cfg: {} },
+  { id: 'carita-0', type: 'carita', size: 'm', cfg: {} },
+  { id: 'frase-0', type: 'frase', size: 'm', cfg: {} },
+  { id: 'dispositivo-0', type: 'dispositivo', size: 'xl', cfg: {} },
+  { id: 'recordatorios-0', type: 'recordatorios', size: 'xl', cfg: {} },
 ];
 // Limpia lo guardado: tipos desconocidos fuera, config completada con los valores por defecto.
 export function normalizeWidgets(raw) {
   if (!Array.isArray(raw)) return DEFAULT_WIDGETS;
   return raw.filter((w) => w && WIDGETS[w.type] && w.id)
-    .map((w) => ({ id: String(w.id), type: w.type, size: w.size === 2 ? 2 : w.size === 1 ? 1 : WIDGETS[w.type].size, cfg: { ...WIDGETS[w.type].cfg, ...(w.cfg || {}) } }));
+    .map((w) => ({ id: String(w.id), type: w.type, size: SIZE_KEYS.includes(w.size) ? w.size : w.size === 2 ? 'xl' : w.size === 1 ? 'm' : WIDGETS[w.type].size, cfg: { ...WIDGETS[w.type].cfg, ...(w.cfg || {}) } }));
 }

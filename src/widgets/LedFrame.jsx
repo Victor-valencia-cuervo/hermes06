@@ -13,7 +13,12 @@ export default function LedFrame({ html, cfg, extra, extras, aspect = '148 / 78'
   const send = (msg) => { try { ref.current?.contentWindow?.postMessage({ __hw: 1, ...msg }, '*'); } catch { /* iframe aún no listo */ } };
 
   useEffect(() => {
-    const on = (e) => { if (ref.current && e.source === ref.current.contentWindow && e.data?.__hw === 1 && e.data.k === 'ready') setReady(true); };
+    const on = (e) => {
+      if (!ref.current || e.source !== ref.current.contentWindow || e.data?.__hw !== 1) return;
+      if (e.data.k === 'ready') setReady(true);
+      // El toque dentro del iframe se reenvía al inicio (para la pulsación larga de 5 s)
+      if (e.data.k === 'ptrev') { const r = ref.current.getBoundingClientRect(); window.dispatchEvent(new CustomEvent('hermes:wpress', { detail: { t: e.data.t, x: r.left + e.data.x, y: r.top + e.data.y, el: ref.current } })); }
+    };
     window.addEventListener('message', on);
     return () => window.removeEventListener('message', on);
   }, [ref]);

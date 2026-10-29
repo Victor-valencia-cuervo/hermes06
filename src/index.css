@@ -280,3 +280,16 @@ input[type="range"]:focus-visible { outline: 2px solid var(--a); outline-offset:
 .eqb.paused i { animation-play-state: paused; transform: scaleY(.35); }
 @keyframes eqb { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .eqb i { animation: none; transform: scaleY(.6); } }
+
+/* ===== Widgets del inicio: tamaños (celular: 1/3 · 1/2 · fila completa; PC: 1/4 · 1/3 · 1/2 · 3/4 · fila completa) ===== */
+.wg { width: 100%; min-width: 0; container-type: inline-size; }
+.wg-xs { width: calc(33.333% - 10.667px); }
+.wg-s { width: calc(50% - 8px); }
+@media (min-width: 768px) {
+  .wg-xs { width: calc(25% - 12px); }
+  .wg-s { width: calc(33.333% - 10.667px); }
+  .wg-m { width: calc(50% - 8px); }
+  .wg-l { width: calc(75% - 4px); }
+}
+.hold-ring { stroke-dasharray: 163.4; stroke-dashoffset: 163.4; animation: holdRing 4.55s linear forwards; }
+@keyframes holdRing { to { stroke-dashoffset: 0; } }

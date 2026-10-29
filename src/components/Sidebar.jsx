@@ -66,7 +66,7 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
       {collapsed && (
         <button onClick={() => setCollapsed(false)} className="hidden lg:grid fixed left-2 top-3 z-30 w-9 h-9 rounded-xl place-items-center glass active:scale-90 transition" aria-label="Mostrar el menú" title="Mostrar el menú"><PanelLeftOpen size={19} /></button>
       )}
-      {!collapsed && <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 pb-4 border-r sticky top-0 self-start overflow-hidden" style={{ background: 'var(--s)', borderColor: 'var(--bd)', height: '100dvh', maxHeight: '100vh' }}>
+      {!collapsed && <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 pb-4 border-r sticky top-0 self-start overflow-hidden" style={{ background: 'var(--s)', borderColor: 'var(--bd)', height: '100dvh', maxHeight: '100vh', paddingBottom: 'calc(1rem + var(--minibar-h, 0px))' }}>
         <NavList view={view} setView={setView} petsOn={petsOn} onTogglePets={onTogglePets} mini={mini} onCollapse={() => setCollapsed(true)} />
       </aside>}
       <div className={`lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${menu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenu(false)} aria-hidden="true" />

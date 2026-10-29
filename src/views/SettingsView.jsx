@@ -113,7 +113,7 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
         </button>
         <p className="text-xs mb-1 font-semibold">Mini reproductor</p>
         <div className="flex gap-2 flex-wrap">
-          {[['float', 'Flotante'], ['bar', 'Barra Spotify'], ['light', 'Spotify blanco']].map(([id, label]) => (
+          {[['float', 'Flotante'], ['bar', 'Barra Spotify'], ['light', 'Spotify claro/oscuro']].map(([id, label]) => (
             <button key={id} onClick={() => { setMiniTheme(id); toast?.(`Mini: ${label}`); }}
               className={`flex-1 px-3 py-2 rounded-full text-xs font-semibold ${miniTheme === id ? 'btn' : 'btn btn-o'}`}>{label}</button>
           ))}
