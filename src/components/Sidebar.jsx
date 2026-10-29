@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PATHS } from '../data/routes';
-import { X, PawPrint, Music, Radio, MoreHorizontal } from 'lucide-react';
+import { X, PawPrint, Music, Radio, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import useStore from '../hooks/useStore';
 import { NAV, BOTTOM_NAV } from '../data/constants';
 import { APP_NAME } from '../lib/format';
 
-function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini }) {
+function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini, onCollapse }) {
   const items = ids ? NAV.filter((n) => ids.includes(n.id)) : NAV;
   return (
     <>
@@ -15,6 +16,7 @@ function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini }) {
           <span className="serif text-2xl tracking-[0.3em] uppercase" style={{ color: 'var(--a)' }}>{APP_NAME}</span>
         </span>
         {close && <button className="ico-btn" onClick={close} aria-label="Cerrar menú"><X size={20} /></button>}
+        {onCollapse && <button className="ico-btn" onClick={onCollapse} aria-label="Ocultar el menú" title="Ocultar el menú"><PanelLeftClose size={20} /></button>}
       </div>
       <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1 -mx-2 px-2 pb-2" style={{ scrollbarWidth: 'thin' }} aria-label="Principal">
         {items.map(({ id, label, I }) => (
@@ -58,11 +60,15 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
   const tabs = BOTTOM_NAV.map((id) => NAV.find((n) => n.id === id)).filter(Boolean);
   const [more, setMore] = useState(false);
   const moreActive = rest.includes(view);
+  const [collapsed, setCollapsed] = useStore('h_side_hidden', false); // menú de PC oculto a mano (no se oculta solo)
   return (
     <>
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 pb-4 border-r sticky top-0 self-start overflow-hidden" style={{ background: 'var(--s)', borderColor: 'var(--bd)', height: '100dvh', maxHeight: '100vh' }}>
-        <NavList view={view} setView={setView} petsOn={petsOn} onTogglePets={onTogglePets} mini={mini} />
-      </aside>
+      {collapsed && (
+        <button onClick={() => setCollapsed(false)} className="hidden lg:grid fixed left-2 top-3 z-30 w-9 h-9 rounded-xl place-items-center glass active:scale-90 transition" aria-label="Mostrar el menú" title="Mostrar el menú"><PanelLeftOpen size={19} /></button>
+      )}
+      {!collapsed && <aside className="hidden lg:flex flex-col w-64 shrink-0 p-6 pb-4 border-r sticky top-0 self-start overflow-hidden" style={{ background: 'var(--s)', borderColor: 'var(--bd)', height: '100dvh', maxHeight: '100vh' }}>
+        <NavList view={view} setView={setView} petsOn={petsOn} onTogglePets={onTogglePets} mini={mini} onCollapse={() => setCollapsed(true)} />
+      </aside>}
       <div className={`lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${menu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenu(false)} aria-hidden="true" />
       <div role="dialog" aria-modal="true" aria-label="Menú" aria-hidden={!menu}
         className={`lg:hidden glass fixed inset-y-0 left-0 z-50 w-[min(20rem,85vw)] p-6 pt-[max(1.5rem,env(safe-area-inset-top))] flex flex-col shadow-2xl border-l-0 rounded-r-3xl transition-transform duration-300 ease-out ${menu ? 'translate-x-0' : '-translate-x-full'}`}>

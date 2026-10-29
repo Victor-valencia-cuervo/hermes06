@@ -109,28 +109,54 @@ export function ArtistBubble({ artist, onClick, size = 'md' }) {
   );
 }
 
-/** Fila de canción estilo Spotify: n.º / carátula, título, artista, duración, ▶ y ⋮. */
-export function SongRow({ n, art, title, sub, duration, explicit, active, playing, loading, onPlay, onMenu, extra }) {
+/** Barras de ecualizador (canción sonando) con el color de la app. */
+export function Eq({ paused }) { return <span className={`eqb ${paused ? 'paused' : ''}`} aria-hidden="true"><i /><i /><i /></span>; }
+
+/** Encabezado de lista estilo Spotify: # · Título · duración. */
+export function SongHead({ numbered = true }) {
   return (
-    <div className={`group flex items-center gap-3.5 px-2 py-2 rounded-2xl transition-colors ${active ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
-      {n != null && <span className="w-6 text-center text-sm tabular-nums shrink-0" style={{ color: active ? 'var(--a)' : 'var(--m)' }}>{n}</span>}
-      <button onClick={onPlay} className="relative shrink-0" aria-label={`Reproducir ${title}`}>
-        <Cover src={art} className="w-14 h-14 rounded-xl" alt={title} />
-        <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/45 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
-          {loading ? <Loader2 size={18} className="animate-spin" /> : active && playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-        </span>
-      </button>
-      <button onClick={onPlay} className="flex-1 min-w-0 text-left py-1.5">
-        <div className="flex items-center gap-1.5 min-w-0" style={{ color: active ? 'var(--a)' : undefined }}>
-          <Marquee className="text-[15px] flex-1">{title}</Marquee>
-          {explicit && <span className="text-[9px] font-bold px-1 rounded shrink-0" style={{ background: 'var(--s2)', color: 'var(--m)' }}>E</span>}
+    <div className="srow-head hidden sm:flex items-center gap-3.5 px-3 pb-2 mb-1" aria-hidden="true">
+      {numbered && <span className="w-6 text-center">#</span>}
+      <span className="flex-1">Título</span>
+      <span className="w-10 text-right">Dur.</span>
+      <span className="w-[44px]" />
+    </div>
+  );
+}
+
+/** Fila de canción estilo Spotify: limpia, sin cajas. n.º (o ecualizador si suena) / carátula chica, título,
+ *  artista, duración y ⋮. La que suena se pinta con el color de la app. */
+export function SongRow({ n, art, title, sub, duration, explicit, active, playing, loading, onPlay, onMenu, extra, noArt }) {
+  return (
+    <div className={`srow group flex items-center gap-3 sm:gap-3.5 px-2 sm:px-3 py-1.5 ${active ? 'on' : ''}`}>
+      {n != null && (
+        <button onClick={onPlay} className="w-6 shrink-0 grid place-items-center text-sm tabular-nums h-10" style={{ color: active ? 'var(--a)' : 'var(--m)' }} aria-label={`Reproducir ${title}`}>
+          {loading ? <Loader2 size={15} className="animate-spin" />
+            : active ? <><span className="group-hover:hidden"><Eq paused={!playing} /></span><span className="hidden group-hover:block">{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}</span></>
+              : <><span className="group-hover:hidden">{n}</span><Play size={15} fill="currentColor" className="hidden group-hover:block" style={{ color: 'var(--t)' }} /></>}
+        </button>
+      )}
+      {!noArt && (
+        <button onClick={onPlay} className="relative shrink-0" aria-label={`Reproducir ${title}`}>
+          <Cover src={art} className="w-12 h-12 !rounded-[5px]" alt={title} />
+          {n == null && (
+            <span className="absolute inset-0 grid place-items-center rounded-[5px] bg-black/55 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity" style={active ? { opacity: 1 } : undefined}>
+              {loading ? <Loader2 size={18} className="animate-spin" /> : active ? (playing ? <Eq /> : <Pause size={18} fill="currentColor" />) : <Play size={18} fill="currentColor" />}
+            </span>
+          )}
+        </button>
+      )}
+      <button onClick={onPlay} className="flex-1 min-w-0 text-left py-1">
+        <div className="srow-t flex items-center gap-1.5 min-w-0">
+          <Marquee className="text-[15px] font-medium flex-1">{title}</Marquee>
+          {explicit && <span className="text-[9px] font-bold px-1 rounded-sm shrink-0" style={{ background: 'var(--m)', color: 'var(--bg)' }}>E</span>}
         </div>
         <Marquee className="text-[13px]" style={{ color: 'var(--m)' }}>{sub}</Marquee>
       </button>
       {extra}
-      {!!duration && <span className="text-xs tabular-nums shrink-0 hidden sm:block" style={{ color: 'var(--m)' }}>{fmtTime(duration)}</span>}
+      {!!duration && <span className="text-[13px] tabular-nums shrink-0 hidden sm:block w-10 text-right" style={{ color: 'var(--m)' }}>{fmtTime(duration)}</span>}
       {onMenu && (
-        <button className="ico-btn shrink-0 !min-w-[44px] !min-h-[44px]" onClick={onMenu} aria-label={`Opciones de ${title}`}><MoreVertical size={19} /></button>
+        <button className="ico-btn shrink-0 !min-w-[40px] !min-h-[40px] srow-act keep" onClick={onMenu} aria-label={`Opciones de ${title}`} style={{ color: 'var(--m)' }}><MoreVertical size={19} /></button>
       )}
     </div>
   );
@@ -184,19 +210,35 @@ export function RowsSkeleton({ n = 5 }) {
   );
 }
 
-/** Cabecera inmersiva (artista/álbum): imagen que cubre la parte superior y se difumina con su propio color.
- *  El menú y la flecha de volver (de la cabecera de la app) flotan sobre la imagen. */
-export function ImmersivePage({ img, tint, onBack, children, alt = '' }) {
-  const c = tint || 'var(--s2)';
+/** Cabecera inmersiva (artista/álbum), igual que el Apple Music del reproductor completo:
+ *  fondo de color con la imagen difuminada, la imagen nítida arriba que se funde hacia abajo con una máscara
+ *  (sin bandas ni cortes) y todo se disuelve en el fondo de la app. El menú y la flecha flotan sobre la imagen. */
+export function ImmersivePage({ img, tint, colors, children, alt = '' }) {
+  const main = colors?.main || tint || 'var(--s2)';
+  const deep = colors?.deep || tint || 'var(--s)';
+  const fade = 'linear-gradient(180deg, #000 0%, #000 46%, rgba(0,0,0,.72) 62%, rgba(0,0,0,.28) 82%, transparent 100%)';
   return (
-    <div className="-mx-5 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[2rem] overflow-hidden pb-6" style={{ background: `linear-gradient(180deg, ${c} 0%, color-mix(in srgb, ${c} 35%, var(--bg)) 60%, var(--bg) 100%)` }}>
+    <div className="immersive relative isolate -mx-5 -mt-4 lg:mx-0 lg:mt-0 lg:rounded-[2rem] overflow-hidden pb-6" style={{ background: 'var(--bg)' }}>
+      {/* 1) Color de la imagen: de arriba hacia abajo hasta el fondo de la app */}
+      <div className="absolute inset-x-0 top-0 h-[46rem] -z-10 pointer-events-none" aria-hidden="true"
+        style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${main} 70%, #000) 0%, color-mix(in srgb, ${deep} 46%, var(--bg)) 42%, var(--bg) 100%)` }} />
+      {/* 2) La misma imagen muy difuminada para que el color "respire" detrás */}
+      {img && (
+        <div className="absolute inset-x-0 top-0 h-[40rem] -z-10 pointer-events-none overflow-hidden" aria-hidden="true"
+          style={{ WebkitMaskImage: 'linear-gradient(180deg, #000 0%, transparent 85%)', maskImage: 'linear-gradient(180deg, #000 0%, transparent 85%)' }}>
+          <img src={img} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" style={{ filter: 'blur(48px) saturate(1.6) brightness(.8)', transform: 'scale(1.6)', opacity: 0.55 }} />
+        </div>
+      )}
+      {/* 3) Imagen nítida: se funde con una máscara larga y suave (el degradado de Apple Music) */}
       <div className="relative h-[54dvh] max-h-[34rem] min-h-[20rem] lg:h-[26rem]">
         {img
-          ? <img src={img} alt={alt} referrerPolicy="no-referrer" fetchPriority="high" decoding="async" className="absolute inset-0 w-full h-full object-cover object-top" />
+          ? <img src={img} alt={alt} referrerPolicy="no-referrer" fetchPriority="high" decoding="async" className="absolute inset-0 w-full h-full object-cover object-top"
+              style={{ WebkitMaskImage: fade, maskImage: fade }} />
           : <div className="absolute inset-0 skel" />}
-        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(0,0,0,.38) 0%, transparent 24%, transparent 40%, color-mix(in srgb, ${c} 60%, transparent) 72%, ${c} 100%)` }} />
+        {/* sombra suave arriba para que se lean el menú y la flecha */}
+        <div className="absolute inset-x-0 top-0 h-28 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,.45), transparent)' }} />
       </div>
-      <div className="relative -mt-14 px-5 lg:px-8">{children}</div>
+      <div className="relative -mt-16 px-5 lg:px-8">{children}</div>
     </div>
   );
 }

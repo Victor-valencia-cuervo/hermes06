@@ -23,8 +23,9 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
   const playerTheme = playerThemeRaw === 'apple-2' || playerThemeRaw === 'hermes-03' || playerThemeRaw === 'spotify' ? 'apple-2' : 'apple-1';
   const [lyricsFont, setLyricsFont] = useStore('h_lyrics_font', 'apple'); // apple (sans) | hermes (serif de Hermes)
   const [autoCover, setAutoCover] = useStore('h_auto_cover', true);
-  const [miniTheme, setMiniTheme] = useStore('h_mini_theme', 'float'); // float | bar
+  const [miniTheme, setMiniTheme] = useStore('h_mini_theme', 'float'); // float | bar | light
   const [clips, setClips] = useStore('h_clips', true); // clips de video de la canción en el reproductor
+  const [heroVideo, setHeroVideo] = useStore('h_hero_video', true); // video de fondo en el hero de música
   const [fsBtn, setFsBtn] = useStore('h_fs_btn', true); // botón de pantalla completa en la cabecera
   const checkLB = async () => {
     if (!lbToken.trim()) { toast?.('Pega tu token ListenBrainz primero'); return; }
@@ -106,9 +107,13 @@ export default function SettingsView({ dark, setDark, accent, setAccent, name, s
           <span><span className="block text-xs font-semibold">Clips de video de la canción</span><span className="block text-xs" style={{ color: 'var(--m)' }}>De vez en cuando, unos segundos del video real sobre la carátula (sin sonido). Gasta algo de datos.</span></span>
           <span className="w-11 h-6 rounded-full relative shrink-0" style={{ background: clips ? 'var(--a)' : 'var(--bd)' }}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: clips ? 22 : 2 }} /></span>
         </button>
+        <button onClick={() => setHeroVideo(!heroVideo)} role="switch" aria-checked={!!heroVideo} className="w-full flex items-center justify-between gap-3 mb-3 text-left">
+          <span><span className="block text-xs font-semibold">Video de fondo en «Sonando ahora»</span><span className="block text-xs" style={{ color: 'var(--m)' }}>En Música, la tarjeta de arriba usa el video de la canción (sin sonido) en lugar de la carátula de fondo.</span></span>
+          <span className="w-11 h-6 rounded-full relative shrink-0" style={{ background: heroVideo ? 'var(--a)' : 'var(--bd)' }}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: heroVideo ? 22 : 2 }} /></span>
+        </button>
         <p className="text-xs mb-1 font-semibold">Mini reproductor</p>
-        <div className="flex gap-2">
-          {[['float', 'Flotante'], ['bar', 'Barra Spotify']].map(([id, label]) => (
+        <div className="flex gap-2 flex-wrap">
+          {[['float', 'Flotante'], ['bar', 'Barra Spotify'], ['light', 'Spotify blanco']].map(([id, label]) => (
             <button key={id} onClick={() => { setMiniTheme(id); toast?.(`Mini: ${label}`); }}
               className={`flex-1 px-3 py-2 rounded-full text-xs font-semibold ${miniTheme === id ? 'btn' : 'btn btn-o'}`}>{label}</button>
           ))}

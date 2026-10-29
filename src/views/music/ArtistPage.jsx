@@ -45,7 +45,7 @@ export default function ArtistPage({ refId, ctx }) {
   return (
     <div className="space-y-7 relative isolate">
       <GlassBackdrop img={a?.art} />
-      <ImmersivePage img={a?.art} alt={a?.name} tint={tint} onBack={onBack}>
+      <ImmersivePage img={a?.art} alt={a?.name} tint={tint} colors={colors} onBack={onBack}>
         <div className="text-center">
           <h2 className="text-[2.6rem] sm:text-5xl font-bold leading-[1.05] line-clamp-2" style={{ textShadow: '0 2px 14px rgba(0,0,0,.35)' }}>{a?.name || '…'}</h2>
           {!!a?.fans && <p className="text-sm mt-1.5" style={{ color: 'var(--m)' }}>{compactNum(a.fans)} seguidores</p>}

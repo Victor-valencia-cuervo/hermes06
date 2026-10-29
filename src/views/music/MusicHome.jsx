@@ -4,6 +4,8 @@ import Cover from '../../components/Cover';
 import Marquee from '../../components/Marquee';
 import { Section, SectionTitle, Shelf, SquareCard, SongRow, ShelfSkeleton, RowsSkeleton } from './ui';
 import { PlaylistCard, RoomPlCard } from './RoomCards';
+import VideoLayer from '../../components/VideoLayer';
+import useStore from '../../hooks/useStore';
 import { CATEGORIES, MOODS } from './data';
 import { albumPath, artistPath } from '../../services/catalog';
 import { getFollowed } from '../../lib/follow';
@@ -26,14 +28,22 @@ function ago(ts) {
 
 /** Hero: lo que suena ahora, o una sugerencia destacada real. */
 function Hero({ p, feat, onPlayFeat, resolving }) {
+  const [heroVideo] = useStore('h_hero_video', true); // video de la canción como fondo (Ajustes)
   const t = p.track || feat;
   if (!t) return <div className="h-52 rounded-[2rem] animate-pulse" style={{ background: 'var(--s2)' }} />;
   const live = !!p.track;
+  const videoBg = heroVideo && live && t.source === 'YouTube' && !!t.videoId;
   const go = () => { if (live) p.toggle(); else onPlayFeat(feat); };
   return (
     <section className="relative overflow-hidden rounded-[2rem] min-h-[13.5rem] sm:min-h-[16rem] flex items-end text-white" style={{ background: '#111' }}>
       {/* Carátula de la canción de fondo: se ve la imagen (poco desenfoque) y un degradado oscuro a la izquierda para leer el texto */}
       {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-110 blur-[3px] opacity-95" />}
+      {/* Video de la canción en lugar de la carátula de fondo (sigue la música; si no carga, se queda la carátula) */}
+      {videoBg && (
+        <div className="absolute inset-0" style={{ filter: 'blur(2px)' }}>
+          <VideoLayer key={t.videoId} videoId={t.videoId} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} onFail={() => {}} />
+        </div>
+      )}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 48%, color-mix(in srgb, var(--a) 22%, rgba(0,0,0,.18)) 100%)' }} />
       <div className="absolute inset-0 pointer-events-none rounded-[2rem]" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.12)' }} />
       <div className="relative w-full p-5 sm:p-7 flex items-center gap-5">
@@ -172,7 +182,7 @@ export default function MusicHome({ h }) {
           <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 pt-0.5 -mx-5 px-5 sm:mx-0 sm:px-0"
             style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
             {historyCols.map((colSongs, colIdx) => (
-              <div key={colIdx} className="w-[88vw] max-w-[360px] shrink-0 snap-start card !p-2 space-y-0.5">
+              <div key={colIdx} className="w-[88vw] max-w-[380px] shrink-0 snap-start space-y-0">
                 {colSongs.map((t) => (
                   <SongRow key={`${t.id}-${t.at || ''}-${colIdx}`} art={t.art} title={t.title} sub={`${t.artist}${t.at ? ` · ${ago(t.at)}` : ''}`}
                     active={p.track?.id === t.id} playing={p.playing} loading={resolvingId === t.id}

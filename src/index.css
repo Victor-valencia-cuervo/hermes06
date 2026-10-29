@@ -262,3 +262,21 @@ input[type="range"]:focus-visible { outline: 2px solid var(--a); outline-offset:
 @media (min-width: 1024px) { .glass-backdrop { left: 0; right: 0; border-radius: 2rem; } }
 .glass-backdrop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.5); filter: blur(60px) saturate(1.4); opacity: .5; }
 .glass-backdrop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 55%, transparent) 55%, var(--bg) 100%); }
+
+/* ===== Listas de canciones estilo Spotify (con el color de la app) ===== */
+.srow { border-radius: 8px; transition: background .15s ease; }
+.srow:hover, .srow:focus-within { background: color-mix(in srgb, var(--t) 8%, transparent); }
+.srow.on .srow-t { color: var(--a); }
+.srow .srow-act { opacity: 1; }
+@media (hover: hover) and (min-width: 1024px) {
+  .srow .srow-act:not(.keep) { opacity: 0; transition: opacity .15s; }
+  .srow:hover .srow-act, .srow:focus-within .srow-act { opacity: 1; }
+}
+.srow-head { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--m); border-bottom: 1px solid var(--bd); }
+.eqb { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.eqb i { display: block; width: 3px; height: 100%; border-radius: 1px; background: var(--a); transform-origin: bottom; animation: eqb 1s ease-in-out infinite; }
+.eqb i:nth-child(2) { animation-delay: -.35s; animation-duration: .8s; }
+.eqb i:nth-child(3) { animation-delay: -.7s; animation-duration: 1.1s; }
+.eqb.paused i { animation-play-state: paused; transform: scaleY(.35); }
+@keyframes eqb { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .eqb i { animation: none; transform: scaleY(.6); } }

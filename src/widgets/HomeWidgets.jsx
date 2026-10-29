@@ -24,10 +24,18 @@ function Carita({ react, weather, onPoke, onOpenWeather }) {
   return (
     <div className="card h-full flex flex-col items-center gap-4">
       <PixelFace face={react.face} kind={react.kind} onClick={onPoke} />
-      <p className="text-sm text-center" aria-live="polite">{react.say}</p>
+      {/* Diálogo: globo grande y legible, con la colita hacia la carita */}
+      <div className="relative w-full rounded-2xl px-5 py-4 text-center" style={{ background: 'var(--s2)' }} aria-live="polite">
+        <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45" style={{ background: 'var(--s2)' }} aria-hidden="true" />
+        <p className="serif text-[1.35rem] sm:text-2xl leading-snug text-balance">{react.say}</p>
+      </div>
       {weather && (
-        <button onClick={onOpenWeather} className="flex items-center gap-2 text-xs hover:opacity-80" style={{ color: 'var(--m)' }} aria-label="Ver detalles del clima">
-          <WI size={15} />{weather.temp}{weather.sym || '°C'} · {weather.t} · máx {weather.max}° / mín {weather.min}°{weather.pop >= 30 ? ` · ☂ ${weather.pop}%` : ''} →
+        <button onClick={onOpenWeather} className="w-full flex items-center justify-center gap-3 pt-3 hover:opacity-80 transition" style={{ borderTop: '1px solid var(--bd)' }} aria-label="Ver detalles del clima">
+          <WI size={26} style={{ color: 'var(--a)' }} />
+          <span className="text-left leading-tight">
+            <span className="block text-xl font-semibold tabular-nums">{weather.temp}{weather.sym || '°C'} <span className="text-sm font-normal" style={{ color: 'var(--m)' }}>{weather.t}</span></span>
+            <span className="block text-xs" style={{ color: 'var(--m)' }}>máx {weather.max}° · mín {weather.min}°{weather.pop >= 30 ? ` · ☂ ${weather.pop}%` : ''}</span>
+          </span>
         </button>
       )}
     </div>

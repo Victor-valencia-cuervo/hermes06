@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GlassBackdrop, GlassPanel, Section, Shelf, SquareCard, SongRow, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
+import { GlassBackdrop, SongHead, Section, Shelf, SquareCard, SongRow, RowsSkeleton, ImmersivePage, ActionRow } from './ui';
 import useArtColors from '../../hooks/useArtColors';
 import { setPageContext } from '../../lib/playContext';
 import { getAlbumBundle, getArtistBundle, artistPath, albumPath } from '../../services/catalog';
@@ -47,7 +47,7 @@ export default function AlbumPage({ refId, ctx }) {
   return (
     <div className="space-y-7 relative isolate">
       <GlassBackdrop img={album?.art} />
-      <ImmersivePage img={album?.art} alt={album?.title} tint={tint} onBack={onBack}>
+      <ImmersivePage img={album?.art} alt={album?.title} tint={tint} colors={colors} onBack={onBack}>
         <div className="text-center">
           <p className="text-[11px] font-bold tracking-[0.25em] uppercase" style={{ color: 'var(--m)' }}>{album?.type === 'single' ? 'Sencillo' : album?.type === 'ep' ? 'EP' : 'Álbum'}</p>
           <h2 className="text-[2.3rem] sm:text-5xl font-bold leading-[1.05] line-clamp-3 mt-1" style={{ textShadow: '0 2px 14px rgba(0,0,0,.35)' }}>{album?.title || '…'}</h2>
@@ -65,11 +65,12 @@ export default function AlbumPage({ refId, ctx }) {
       </ImmersivePage>
 
       {data === undefined ? <RowsSkeleton n={8} /> : (
-        <GlassPanel>
+        <div>
+          <SongHead />
           {tracks.map((t, i) => {
             const on = isNow(p.track, t);
             return (
-              <SongRow key={t.id} n={t.trackNumber || i + 1} art={t.art} title={t.title} sub={t.artist} duration={t.duration} explicit={t.explicit}
+              <SongRow key={t.id} n={t.trackNumber || i + 1} art={t.art} title={t.title} sub={t.artist} duration={t.duration} explicit={t.explicit} noArt
                 active={on} playing={p.playing} loading={resolvingId === t.id}
                 onPlay={() => (on ? p.openFull?.() : playEntry(t))}
                 onMenu={() => openMenu({ ...t, source: 'YouTube' }, tracks, { kind: 'chart', onPlay: playEntry })} />
@@ -77,7 +78,7 @@ export default function AlbumPage({ refId, ctx }) {
           })}
           {!tracks.length && <p className="text-sm p-3" style={{ color: 'var(--m)' }}>Ese álbum no trajo canciones.</p>}
           {!!total && <p className="text-xs px-3 pt-2 pb-1" style={{ color: 'var(--m)' }}>{tracks.length} canciones · {fmtTime(total)}</p>}
-        </GlassPanel>
+        </div>
       )}
 
       {!!more.length && (

@@ -246,6 +246,9 @@ function frame(now){
 requestAnimationFrame(frame);
 </script>
 <script>(function(){
+const HWhsl=h=>{let[r,g,b]=HWrgb(h).map(v=>v/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let H=0,L=(mx+mn)/2,S=d===0?0:d/(1-Math.abs(2*L-1));if(d)H=mx===r?((g-b)/d+6)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return[H*60,S,L]};
+const HWrgbOf=(h,s,l)=>{h=((h%360)+360)%360;const a=s*Math.min(l,1-l),f=n=>{const k=(n+h/30)%12;return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1))))};return[f(0),f(8),f(4)]};
+
 const HWrgb=h=>{h=String(h||'#ffffff').replace('#','');return[parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0]};
 const HWcomp=h=>{let[r,g,b]=HWrgb(h).map(v=>v/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let H=0,L=(mx+mn)/2,S=mx===mn?0:(L>.5?(mx-mn)/(2-mx-mn):(mx-mn)/(mx+mn));if(mx!==mn){H=mx===r?(g-b)/(mx-mn)+(g<b?6:0):mx===g?(b-r)/(mx-mn)+2:(r-g)/(mx-mn)+4;H*=60}
  H=(H+180)%360;const f=n=>{const k=(n+H/30)%12,a=S*Math.min(L,1-L);return Math.round(255*(L*.55-a*Math.max(-1,Math.min(k-3,9-k,1))))};return'#'+[f(0),f(8),f(4)].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('')};

@@ -8,6 +8,7 @@ import Marquee from './Marquee';
 import BlockedBar from './BlockedBar';
 import FloatCard from './FloatCard';
 import MiniBarSpotify from './MiniBarSpotify';
+import MiniBarLight from './MiniBarLight';
 import ClipLayer from './ClipLayer';
 import useArtColors from '../hooks/useArtColors';
 import useStore from '../hooks/useStore';
@@ -118,7 +119,9 @@ export default function PlayerBar({ p, toast, onOpenFull, min, onMinChange }) {
       {/* Slot oculto: aquí vive el player cuando es solo audio */}
       <div ref={hiddenRef} aria-hidden="true" tabIndex={-1}
         style={{ position: 'fixed', width: 2, height: 2, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} />
-      {miniTheme === 'bar' ? (
+      {miniTheme === 'light' ? (
+        min ? null : <MiniBarLight p={p} onOpenFull={() => onOpenFull?.()} onMin={() => onMinChange?.(true)} queuePop={queuePop} />
+      ) : miniTheme === 'bar' ? (
         min ? null : <MiniBarSpotify p={p} onOpenFull={() => onOpenFull?.()} onMin={() => onMinChange?.(true)} queuePop={queuePop} />
       ) : (
       <FloatCard

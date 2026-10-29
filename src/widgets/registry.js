@@ -49,10 +49,11 @@ export const WIDGETS = {
     ],
   },
   mascota: {
-    kind: 'led', html: mascotaHtml, aspect: '1 / 1', square: true, name: 'Mascota de puntos', icon: Sparkles, size: 1, multi: false,
-    desc: 'Una carita de puntos totalmente automática: baila con tu música, se duerme si no haces nada y se sorprende con los avisos.',
-    cfg: { ring: 'normal', intensity: 'normal', hat: false, noLine: false, noDots: false, bored: true },
+    kind: 'led', html: mascotaHtml, aspect: '1 / 1', name: 'Mascota de puntos', icon: Sparkles, size: 1, multi: false,
+    desc: 'Una carita de puntos pequeñita con su diálogo y el clima. Cambia de cara con tu música, el clima, la hora y los avisos; se duerme si no haces nada.',
+    cfg: { text: true, ring: 'normal', intensity: 'normal', hat: false, noLine: false, noDots: false, bored: true },
     settings: [
+      { key: 'text', label: 'Mostrar diálogo y clima', type: 'toggle' },
       { key: 'ring', label: 'Anillo', type: 'select', options: [['normal', 'Normal'], ['onda', 'Onda'], ['giro', 'Giro'], ['ondas', 'Ondas'], ['chispas', 'Chispas'], ['respirar', 'Respirar'], ['latido', 'Latido'], ['filoso', 'Filoso'], ['luna', 'Luna']] },
       { key: 'intensity', label: 'Intensidad del ritmo', type: 'seg', options: [['bajo', 'Baja'], ['normal', 'Normal'], ['alto', 'Alta']] },
       { key: 'hat', label: 'Sombrero', type: 'toggle' },
