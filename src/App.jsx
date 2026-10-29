@@ -34,24 +34,25 @@ import PlayerBar from './components/PlayerBar';
 import RadioPlayerBar from './components/RadioPlayerBar';
 import YTEmbed from './components/YTEmbed';
 import HomeView from './views/HomeView';
+import { lazyRetry, clearChunkRecovery } from './lib/lazyRetry';
 // Vistas pesadas en lazy: no van al bundle inicial, cargan al abrirlas.
-const PeerProfileView = lazy(() => import('./views/PeerProfileView'));
-const BlockedSheet = lazy(() => import('./components/BlockedSheet'));
-const FullPlayer = lazy(() => import('./components/FullPlayer'));
-const RadioFullPlayer = lazy(() => import('./components/RadioFullPlayer'));
-const WeatherView = lazy(() => import('./views/WeatherView'));
-const MusicView = lazy(() => import('./views/MusicView'));
-const ProfileView = lazy(() => import('./views/ProfileView'));
-const CommunityView = lazy(() => import('./views/CommunityView'));
-const ChatView = lazy(() => import('./views/ChatView'));
-const RadiosView = lazy(() => import('./views/RadiosView'));
-const RemindersView = lazy(() => import('./views/RemindersView'));
-const NotesView = lazy(() => import('./views/NotesView'));
-const ShortcutsView = lazy(() => import('./views/ShortcutsView'));
-const ToolsView = lazy(() => import('./views/ToolsView'));
-const FinanceView = lazy(() => import('./views/FinanceView'));
-const ZenView = lazy(() => import('./views/ZenView'));
-const SettingsView = lazy(() => import('./views/SettingsView'));
+const PeerProfileView = lazyRetry(() => import('./views/PeerProfileView'));
+const BlockedSheet = lazyRetry(() => import('./components/BlockedSheet'));
+const FullPlayer = lazyRetry(() => import('./components/FullPlayer'));
+const RadioFullPlayer = lazyRetry(() => import('./components/RadioFullPlayer'));
+const WeatherView = lazyRetry(() => import('./views/WeatherView'));
+const MusicView = lazyRetry(() => import('./views/MusicView'));
+const ProfileView = lazyRetry(() => import('./views/ProfileView'));
+const CommunityView = lazyRetry(() => import('./views/CommunityView'));
+const ChatView = lazyRetry(() => import('./views/ChatView'));
+const RadiosView = lazyRetry(() => import('./views/RadiosView'));
+const RemindersView = lazyRetry(() => import('./views/RemindersView'));
+const NotesView = lazyRetry(() => import('./views/NotesView'));
+const ShortcutsView = lazyRetry(() => import('./views/ShortcutsView'));
+const ToolsView = lazyRetry(() => import('./views/ToolsView'));
+const FinanceView = lazyRetry(() => import('./views/FinanceView'));
+const ZenView = lazyRetry(() => import('./views/ZenView'));
+const SettingsView = lazyRetry(() => import('./views/SettingsView'));
 const ViewFallback = () => (
   <div className="card grid place-items-center py-10" aria-label="Cargando vista">
     <span className="text-sm" style={{ color: 'var(--m)' }}>Cargando…</span>
@@ -92,6 +93,8 @@ export default function App() {
     requestAnimationFrame(() => { try { el.scrollTo(0, saved || 0); } catch { el.scrollTop = saved || 0; } });
     return () => { scrollPos.current.set(key, el.scrollTop); };
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // La app está corriendo: la última recarga de recuperación sí sirvió; permitir la próxima.
+  useEffect(() => { clearChunkRecovery(); }, []);
   const [menu, setMenu] = useState(false);
   const [full, setFull] = useState(false);
   const [radioFull, setRadioFull] = useState(false);
