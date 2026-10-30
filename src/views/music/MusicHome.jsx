@@ -54,7 +54,7 @@ function Hero({ p, feat, onPlayFeat, resolving }) {
       <div className="relative p-3 sm:p-4">
         {/* Video limpio: nada encima, se lee todo lo que tenga el video */}
         {videoBg && (
-          <div className="relative aspect-video rounded-[1.4rem] overflow-hidden bg-black" style={{ boxShadow: '0 10px 34px -12px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.1)' }}>
+          <div className="relative aspect-video lg:aspect-[2.2/1] rounded-[1.4rem] overflow-hidden bg-black" style={{ boxShadow: '0 10px 34px -12px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.1)' }}>
             {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover" />}
             {vid()}
           </div>
