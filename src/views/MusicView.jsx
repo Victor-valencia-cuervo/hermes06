@@ -853,8 +853,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
           fuente={fuente} ctx={ctx} fallback={popTracks} />
       )}
       {mode === 'library' && (
-        <LibraryPage p={p} playlists={pls.playlists} plStats={plStats} nav={nav} onCreate={() => setCreateOpen(true)} openPl={openPl}
-          openMenu={(t, list, opts) => openMenu(t, list, opts)} />
+        <LibraryPage p={p} playlists={pls.playlists} plStats={plStats} onCreate={() => setCreateOpen(true)} openPl={openPl} />
       )}
       {mode === 'artist' && <ArtistPage refId={routeParam} ctx={ctx} />}
       {mode === 'album' && <AlbumPage refId={routeParam} ctx={ctx} />}

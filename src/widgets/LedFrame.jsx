@@ -39,20 +39,14 @@ export default function LedFrame({ html, cfg, extra, extras, aspect = '148 / 78'
   useEffect(() => { if (ready) send({ k: 'cfg', cfg, color, ...(extra || {}) }); }, [ready, JSON.stringify(cfg), color, JSON.stringify(extra)]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready && extras) Object.values(extras).forEach((m) => m && send(m)); }, [ready, JSON.stringify(extras)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Marco premium para las pantallas de puntos (negras): degradado con un toque del color de la app, borde fino de cristal,
-  // brillo arriba y sombra suave. En modo transparente (la carita) no lleva fondo: se ve sobre la tarjeta, en claro y en oscuro.
-  const frameStyle = transparent ? {} : {
-    background: `radial-gradient(120% 90% at 12% 0%, ${color}26 0%, transparent 55%), linear-gradient(160deg, #111116 0%, #050507 100%)`,
-    boxShadow: `inset 0 0 0 1px rgba(255,255,255,.09), inset 0 1px 0 rgba(255,255,255,.18), 0 18px 38px -20px rgba(0,0,0,.65), 0 0 34px -16px ${color}88`,
-  };
+  // Igual que antes (pantalla negra con esquinas redondeadas); lo único nuevo es un filo finísimo que toma la paleta de la app
+  // (en oscuro y en claro). Sin sombras ni brillos. En modo transparente (la carita) no lleva fondo ni filo.
   return (
-    <div className={`relative w-full overflow-hidden ${className}`} style={{ aspectRatio: aspect, borderRadius: transparent ? 0 : 26, ...frameStyle, ...style }}>
+    <div className={`relative w-full overflow-hidden ${transparent ? '' : 'bg-black'} ${className}`} style={{ aspectRatio: aspect, borderRadius: transparent ? 0 : 24, ...style }}>
       <iframe ref={ref} title={title} srcDoc={html} sandbox="allow-scripts" loading="lazy"
         onLoad={() => send({ k: 'cfg', cfg, color, theme, ...(extra || {}) })}
         className="absolute inset-0 w-full h-full border-0" style={{ pointerEvents: interactive ? 'auto' : 'none', colorScheme: transparent ? 'normal' : 'dark', background: 'transparent' }} />
-      {!transparent && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ borderRadius: 'inherit', mixBlendMode: 'screen', background: `linear-gradient(180deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 24%), radial-gradient(90% 60% at 100% 100%, ${color}24, transparent 62%)` }} />
-      )}
+      {!transparent && <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ borderRadius: 'inherit', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--a) 16%, var(--bd))' }} />}
     </div>
   );
 }
