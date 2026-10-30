@@ -21,7 +21,9 @@ import { searchTracks as searchAudius, trendingTracks as trendingAudius } from '
 import { topSongs, newMusic, CHART_COUNTRIES } from '../services/charts';
 import { getCategoryPack } from '../services/artist';
 import { searchCatalog, chartTracks, chartAlbums, albumsOfArtists, newReleases, artistPath, albumPath } from '../services/catalog';
-import { Section as UISection, SectionTitle, Shelf, SquareCard, BackBar, SongRow } from './music/ui';
+import { Section as UISection, SectionTitle, Shelf, SquareCard, BackBar, SongRow, ImmersivePage, ActionRow, GlassBackdrop } from './music/ui';
+import LibraryPage from './music/LibraryPage';
+import { FAV_ART, FAV_COLORS, playlistArt } from '../lib/vectorArt';
 import { PlaylistCard } from './music/RoomCards';
 import MusicHome from './music/MusicHome';
 import SearchResults from './music/SearchResults';
@@ -92,7 +94,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
   const route = parts[0] || 'home';
   const routeParam = decodeURIComponent(parts[1] || '');
   const qParam = new URLSearchParams(loc.search).get('q') || '';
-  const mode = ({ resultados: 'results', artista: 'artist', album: 'album', categoria: 'category', playlist: 'playlist', sala: 'roompl' })[route] || 'home';
+  const mode = ({ resultados: 'results', artista: 'artist', album: 'album', categoria: 'category', playlist: 'playlist', sala: 'roompl', biblioteca: 'library' })[route] || 'home';
   const searchOpen = route === 'buscar';
   const goHome = () => nav('/musica');
   // Volver: atrás real del historial; si se abrió directo la URL, al inicio de Música.
@@ -707,6 +709,10 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     ? { id: 'fav', name: 'Tus Me Gusta', tracks: p.favs || [] }
     : pls.playlists.find((x) => x.id === selectedPl);
   const isFavPl = sel?.id === 'fav';
+  // Portada del hero de la playlist: Favoritos lleva su imagen vectorial; las demás, la carátula o una generada.
+  const plArt = sel ? (isFavPl ? FAV_ART : (sel.tracks[0]?.art || playlistArt(sel.name, sel.color))) : null;
+  const plColorsRaw = useArtColors(plArt && !isFavPl && !/^data:/.test(plArt) ? plArt : null);
+  const plColors = isFavPl ? FAV_COLORS : plColorsRaw;
   // Customs ordenadas por escuchas (Me Gusta va fija de primera).
   const topPls = [...pls.playlists]
     .sort((a, b) => ((plStats[b.id] || 0) - (plStats[a.id] || 0)) || (b.tracks.length - a.tracks.length))
@@ -800,20 +806,10 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
     goSearch(q);
     try { searchInputRef.current?.blur(); } catch { /* noop */ } // baja el teclado: se ven los resultados
   };
-  // En resultados, al editar el texto las sugerencias flotan bajo la barra (los resultados siguen ahí).
-  const floatSugs = mode === 'results' && barFocus && sugOpen && sugs.length > 0;
-  const dropdown = floatSugs ? (
-    <div className="absolute left-5 right-5 lg:left-10 lg:right-10 top-full mt-1 rounded-3xl p-1.5 shadow-2xl max-h-[60dvh] overflow-y-auto"
-      style={{ background: 'var(--s)', border: '1px solid var(--bd)' }} onPointerDown={(e) => e.preventDefault()}>
-      {sugs.map((sg, i) => (
-        <button key={`${sg.label}-${i}`} type="button" onClick={() => pickSug(sg.label)}
-          className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-2xl hover:bg-[var(--s2)] active:scale-[.99] transition">
-          <Search size={16} className="shrink-0" style={{ color: sg.from === 'web' ? 'var(--a)' : 'var(--m)' }} />
-          <span className="truncate flex-1 text-[15px]">{sg.label}</span>
-        </button>
-      ))}
-    </div>
-  ) : null;
+  // Sugerencias: solo en la lista (nada flotante). En resultados, al editar el texto la lista reemplaza a los resultados.
+  const editingResults = mode === 'results' && barFocus && q.trim().length >= 2 && q.trim() !== (qParam || '').trim();
+  const showSugList = lampOn && (searchOpen || editingResults);
+  const dropdown = null;
 
   return (
     <div className="space-y-4" onClickCapture={markPending}>
@@ -837,7 +833,7 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
           onFocus={onBarFocus} onBlur={onBarBlur} inputRef={searchInputRef} dropdown={dropdown} />
       ))}
 
-      {searchOpen && lampOn && (
+      {showSugList && (
         <SearchPage
           q={q} sugs={sugs}
           onPick={pickSug}
@@ -852,9 +848,13 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
         />
       )}
 
-      {mode === 'results' && (
+      {mode === 'results' && !editingResults && (
         <SearchResults q={qParam || resultsLabel} cat={sCat} catLoading={sCatBusy} videos={results} videosLoading={videosBusy}
           fuente={fuente} ctx={ctx} fallback={popTracks} />
+      )}
+      {mode === 'library' && (
+        <LibraryPage p={p} playlists={pls.playlists} plStats={plStats} nav={nav} onCreate={() => setCreateOpen(true)} openPl={openPl}
+          openMenu={(t, list, opts) => openMenu(t, list, opts)} />
       )}
       {mode === 'artist' && <ArtistPage refId={routeParam} ctx={ctx} />}
       {mode === 'album' && <AlbumPage refId={routeParam} ctx={ctx} />}
@@ -937,20 +937,18 @@ export default function MusicView({ p, toast, local, auth, onOpenRoom }) {
       )}
       {mode === 'playlist' && sel && (
         <>
-          <BackBar title={sel.name} onBack={goBack} />
-          <PlaylistHero
-            art={sel.tracks[0]?.art}
-            icon={<ListMusic size={30} />}
-            eyebrow={isFavPl ? 'Favoritos' : 'Playlist'}
-            title={sel.name}
-            meta={`${sel.tracks.length} canciones`}
-            actions={
-              <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform"
-                onClick={() => playPlaylist(sel)} disabled={!sel.tracks.length}>
-                <Play size={16} fill="currentColor" /> Reproducir todo
-              </button>
-            }
-          />
+          <div className="relative isolate">
+            <GlassBackdrop img={plArt} />
+            <ImmersivePage img={plArt} alt={sel.name} colors={plColors} tint={plColors ? `color-mix(in srgb, ${plColors.main} 70%, #000)` : undefined} onBack={goBack}>
+              <div className="text-center">
+                <p className="text-[11px] font-bold tracking-[0.25em] uppercase" style={{ color: 'var(--m)' }}>{isFavPl ? 'Favoritos' : 'Playlist'}</p>
+                <h2 className="text-[2.4rem] sm:text-5xl font-bold leading-[1.05] line-clamp-2 mt-1" style={{ textShadow: '0 2px 14px rgba(0,0,0,.35)' }}>{sel.name}</h2>
+                <p className="text-sm mt-2" style={{ color: 'var(--m)' }}>{sel.tracks.length} canciones</p>
+              </div>
+              <ActionRow disabled={!sel.tracks.length} onPlay={() => playPlaylist(sel)}
+                onShuffle={() => { if (sel.tracks.length) playPlaylist({ ...sel, tracks: [...sel.tracks].sort(() => Math.random() - 0.5) }); }} />
+            </ImmersivePage>
+          </div>
           <div className="glass-panel !p-4">
             <div className="flex items-center gap-2 mb-2">
               {renaming ? (

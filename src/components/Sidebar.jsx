@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PATHS } from '../data/routes';
 import { X, PawPrint, Music, Radio, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import useStore from '../hooks/useStore';
 import { NAV, BOTTOM_NAV } from '../data/constants';
 import { APP_NAME } from '../lib/format';
 
+// Buscar y Biblioteca viven dentro de Música (misma vista), así que se marcan por la URL.
+function useActive(view) {
+  const path = useLocation().pathname;
+  const inSearch = /^\/musica\/(buscar|resultados)/.test(path); const inLib = /^\/musica\/biblioteca/.test(path);
+  return (id) => (id === 'search' ? inSearch : id === 'library' ? inLib : id === 'music' ? view === 'music' && !inSearch && !inLib : view === id);
+}
+
 function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini, onCollapse }) {
   const items = ids ? NAV.filter((n) => ids.includes(n.id)) : NAV;
+  const isOn = useActive(view);
   return (
     <>
       <div className="flex items-center justify-between mb-6 shrink-0">
@@ -20,8 +28,8 @@ function NavList({ view, setView, close, ids, petsOn, onTogglePets, mini, onColl
       </div>
       <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1 -mx-2 px-2 pb-2" style={{ scrollbarWidth: 'thin' }} aria-label="Principal">
         {items.map(({ id, label, I }) => (
-          <Link key={id} to={PATHS[id]} onClick={() => close?.()} aria-current={view === id ? 'page' : undefined}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 [@media(min-height:760px)]:py-3 rounded-2xl text-sm text-left transition ${view === id ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
+          <Link key={id} to={PATHS[id]} onClick={() => close?.()} aria-current={isOn(id) ? 'page' : undefined}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 [@media(min-height:760px)]:py-3 rounded-2xl text-sm text-left transition ${isOn(id) ? 'acc-soft' : 'hover:bg-[var(--s2)]'}`}>
             <I size={18} strokeWidth={1.6} />{label}
           </Link>
         ))}
@@ -59,6 +67,7 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
   const rest = NAV.filter((n) => !BOTTOM_NAV.includes(n.id)).map((n) => n.id);
   const tabs = BOTTOM_NAV.map((id) => NAV.find((n) => n.id === id)).filter(Boolean);
   const [more, setMore] = useState(false);
+  const isOn = useActive(view);
   const moreActive = rest.includes(view);
   const [collapsed, setCollapsed] = useStore('h_side_hidden', false); // menú de PC oculto a mano (no se oculta solo)
   return (
@@ -78,7 +87,7 @@ export default function Sidebar({ view, setView, menu, setMenu, petsOn, onToggle
       <nav aria-label="Principal móvil" className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass border-t pb-[env(safe-area-inset-bottom)]" style={{ borderColor: 'var(--bd)' }}>
         <div className="grid grid-cols-5">
           {tabs.map(({ id, label, I }) => {
-            const active = view === id;
+            const active = isOn(id);
             return (
               <Link key={id} to={PATHS[id]} onClick={() => setMore(false)} aria-current={active ? 'page' : undefined}
                 className="flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium"

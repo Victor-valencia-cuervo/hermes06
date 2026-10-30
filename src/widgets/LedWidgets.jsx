@@ -5,6 +5,9 @@ import { WIDGETS } from './registry';
 import LedFrame from './LedFrame';
 import { Bubble, WeatherRow } from './CaritaParts';
 
+// Tamaño de la carita (el mismo para la carita del día y la mascota de puntos).
+export const FACE_SIZE = 'w-36 h-36 sm:w-44 sm:h-44 shrink-0';
+
 // Caritas del día (react.face) → expresiones de la mascota de puntos.
 const FACE2EX = { feliz: 'happy', enamorado: 'love', lentes: 'cool', guino: 'wink', neutral: 'neutral', pensando: 'talking', llanto: 'sad', sorpresa: 'surprised', dormido: 'sleepy', musica: 'dance', travieso: 'wink', diablito: 'cool', enojado: 'angry', risa: 'happy', mareado: 'dizzy', corazon: 'love', asustado: 'surprised' };
 // Mientras suena música va pasando por varias caritas (no solo bailando).
@@ -54,10 +57,10 @@ export default function LedWidget({ item, ctx = {}, interactive = true }) {
   }, [item.type]);
 
   const led = (cls = 'w-full') => (
-    <div className={cls}><LedFrame html={def.html} cfg={cfg} extra={extra} extras={extras} aspect={def.aspect} title={def.name} interactive={interactive} frameRef={frame} /></div>
+    <div className={cls}><LedFrame html={def.html} cfg={cfg} extra={extra} extras={extras} aspect={def.aspect} title={def.name} interactive={interactive} frameRef={frame} transparent={item.type === 'mascota' && cfg.look !== 'classic'} /></div>
   );
-  // La mascota de puntos ocupa el mismo lugar y tamaño que la carita del día (128 px); solo cambia la carita.
-  if (item.type === 'mascota') return <PetCard tile={led('w-32 h-32 shrink-0')} ctx={ctx} showText={cfg.text !== false} onWeather={ctx.onOpenWeather} />;
+  // La mascota de puntos ocupa el mismo lugar y tamaño que la carita del día; solo cambia la carita.
+  if (item.type === 'mascota') return <PetCard tile={led(FACE_SIZE)} ctx={ctx} showText={cfg.text !== false} onWeather={ctx.onOpenWeather} />;
   return (
     <div className={def.square && (item.size === 'l' || item.size === 'xl') ? 'max-w-[560px] mx-auto w-full' : 'w-full'}>
       <LedFrame html={def.html} cfg={cfg} extra={extra} extras={extras} aspect={def.aspect} title={def.name} interactive={interactive} frameRef={frame} />

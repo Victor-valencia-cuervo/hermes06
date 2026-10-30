@@ -69,13 +69,12 @@ export default function SearchResults({ q, cat, catLoading, videos, videosLoadin
   return (
     <div className="space-y-7">
       <BackBar title={`“${q}”`} onBack={onBack} />
-      <Chips items={TABS} value={tab} onChange={setTab} />
+      <Chips items={TABS} value={tab} onChange={setTab} counts={{ songs: tracks.length, artists: cat.artists.length, albums: allAlbums.length, videos: videos.length }} />
 
       {loading && (
-        <div className="space-y-7">
-          <div className="skel h-44 rounded-3xl" />
-          <ShelfSkeleton round n={5} />
-          <RowsSkeleton />
+        <div className="space-y-3">
+          <div className="skel h-4 w-28 ml-1" />
+          <RowsSkeleton n={9} />
         </div>
       )}
 

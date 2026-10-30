@@ -1,4 +1,4 @@
-import { Home, CloudSun, Music, Radio, UserRound, Users, MessageCircle, AlarmClock, StickyNote, LayoutGrid, Wrench, Wallet, Settings, Clapperboard } from 'lucide-react';
+import { Home, CloudSun, Music, Radio, UserRound, Users, MessageCircle, AlarmClock, StickyNote, LayoutGrid, Wrench, Wallet, Settings, Clapperboard, Search, Library } from 'lucide-react';
 
 export const QUOTES = [
   { t: "Conócete a ti mismo.", a: "Sócrates" },
@@ -77,6 +77,8 @@ export const TOOLS = [
 export const NAV = [
   { id: 'home', label: 'Inicio', I: Home }, { id: 'weather', label: 'Clima', I: CloudSun },
   { id: 'music', label: 'Música', I: Music },
+  { id: 'search', label: 'Buscar', I: Search },
+  { id: 'library', label: 'Biblioteca', I: Library },
   { id: 'profile', label: 'Perfil', I: UserRound },
   { id: 'community', label: 'Comunidad', I: Users },
   { id: 'chat', label: 'Chat', I: MessageCircle },
@@ -88,4 +90,4 @@ export const NAV = [
 ];
 export const ACCENTS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9'];
 // En móvil van en la barra inferior; el resto queda en el cuadrito Más.
-export const BOTTOM_NAV = ['home', 'music', 'community', 'profile'];
+export const BOTTOM_NAV = ['home', 'music', 'search', 'library'];

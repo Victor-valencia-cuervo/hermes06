@@ -12,6 +12,7 @@ import {
   searchArtist as itSearchArtist, getArtistAlbums as itAlbums, getAlbumTracks as itAlbumTracks,
   getArtistTopSongs as itTop, searchAlbums as itSearchAlbums, searchSongs as itSearchSongs,
 } from './artist';
+import { searchYouTube, getSuggestions } from './youtube';
 
 const TTL = 10 * 60 * 1000;
 const cache = new Map();
@@ -88,7 +89,7 @@ const itTrack = (s) => ({
 
 // ---------- búsqueda ----------
 /** Todo lo que coincide con el término: artistas (con foto), álbumes y canciones. Nunca lanza. */
-export async function searchCatalog(term) {
+async function rawSearch(term) {
   const q = String(term || '').trim();
   const empty = { artists: [], albums: [], tracks: [], source: 'none' };
   if (q.length < 2) return empty;
@@ -269,3 +270,98 @@ export const artistPath = (a) => (a?.ref ? `/musica/artista/${a.ref}` : '/musica
 export const albumPath = (a) => (a?.ref ? `/musica/album/${a.ref}` : '/musica');
 
 export const compactNum = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')} K` : String(n || 0));
+
+
+// ---------- búsqueda inteligente ----------
+// Encuentra la canción aunque la escribas mal, a medias, con la letra o con el artista: puntúa por parecido (tolera
+// errores de tecleo), y si lo que llega es flojo prueba correcciones (sugerencias de YouTube), variantes de la frase
+// y los títulos que salen al buscar la "letra". Todo con tiempo límite: nunca deja la búsqueda colgada.
+const lev = (a, b) => {
+  if (a === b) return 0;
+  const m = a.length; const n = b.length; if (!m || !n) return Math.max(m, n);
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+};
+const tokSim = (a, b) => {
+  if (a === b) return 1;
+  if (a.length >= 3 && b.length >= 3 && (b.startsWith(a) || a.startsWith(b))) return 0.92; // a medio escribir
+  if (a.length < 4 || b.length < 4) return 0;
+  const m = Math.max(a.length, b.length); const d = lev(a, b);
+  return d <= Math.max(1, Math.floor(m / 3.2)) ? Math.max(0.55, 1 - d / m) : 0;
+};
+const squash = (s) => norm(s).replace(/(.)\1+/g, '$1'); // "helloo" ~ "hello"
+/** 0..1: cuánto se parece `text` a lo que escribiste (palabras sueltas, desordenadas o con errores). */
+export function matchScore(q, text) {
+  const qn = norm(q); const tn = norm(text); if (!qn || !tn) return 0;
+  if (tn === qn) return 1;
+  const qt = qn.split(' ').filter(Boolean); const tt = tn.split(' ').filter(Boolean);
+  let sum = 0;
+  for (const w of qt) { let best = 0; for (const x of tt) { const v = Math.max(tokSim(w, x), tokSim(squash(w), squash(x))); if (v > best) best = v; if (best === 1) break; } sum += best; }
+  let sc = sum / qt.length;
+  if (tn.includes(qn)) sc = Math.max(sc, 0.95);
+  else if (qn.length > 4 && lev(qn, tn.slice(0, qn.length + 2)) <= Math.floor(qn.length / 5)) sc = Math.max(sc, 0.8);
+  return Math.min(1, sc);
+}
+const cleanQuery = (q) => String(q || '')
+  .replace(/[\u2018\u2019\u201c\u201d"“”]/g, ' ').replace(/\((?:official|oficial|lyrics?|letra|video|audio|hd|4k)[^)]*\)/gi, ' ')
+  .replace(/\b(?:feat|ft|featuring)\.?\b/gi, ' ').replace(/\b(?:official|oficial|video|lyrics?|letra|audio)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+const titleOfVideo = (t) => cleanQuery(String(t || '').replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/\s[-|–—]\s/g, ' ')).slice(0, 80);
+const withTimeout = (pr, ms, fb) => Promise.race([pr, new Promise((r) => setTimeout(() => r(fb), ms))]);
+
+const trackText = (t) => `${t.title} ${t.artist} ${t.album || ''}`;
+function rankAll(q, lists, via = {}) {
+  const sc = (x, text) => { const own = matchScore(q, text); const v = via[x.ref || x.id]; return v ? Math.max(own, matchScore(v, text) * 0.85) : own; };
+  const sortBy = (arr, textOf) => arr.map((x, i) => ({ x, i, s: sc(x, textOf(x)) })).sort((a, b) => (b.s - a.s) || (a.i - b.i)).map((e) => e.x);
+  return {
+    artists: sortBy(lists.artists, (a) => a.name),
+    albums: sortBy(lists.albums, (a) => `${a.title} ${a.artist}`),
+    tracks: sortBy(lists.tracks, trackText),
+  };
+}
+const mergeCat = (base, add) => ({
+  ...base,
+  artists: dedupe([...base.artists, ...add.artists], (x) => norm(x.name)),
+  albums: dedupe([...base.albums, ...add.albums], (x) => `${norm(x.title)}|${norm(x.artist)}`),
+  tracks: dedupe([...base.tracks, ...add.tracks], (x) => `${norm(x.title)}|${norm(x.artist)}`),
+});
+
+export async function searchCatalog(term) {
+  const q = String(term || '').trim();
+  const empty = { artists: [], albums: [], tracks: [], source: 'none' };
+  if (q.length < 2) return empty;
+  const ck = `smart:${norm(q)}`;
+  const hit = cGet(ck); if (hit) return hit;
+  const clean = cleanQuery(q) || q;
+  let cat = await rawSearch(clean).catch(() => empty);
+  if (clean !== q) cat = mergeCat(cat, await rawSearch(q).catch(() => empty));
+  cat = { ...cat, ...rankAll(q, cat) };
+  const top = Math.max(cat.tracks[0] ? matchScore(q, trackText(cat.tracks[0])) : 0, cat.artists[0] ? matchScore(q, cat.artists[0].name) : 0, cat.albums[0] ? matchScore(q, `${cat.albums[0].title} ${cat.albums[0].artist}`) : 0);
+  if (top >= 0.72 || q.length < 3) return cSet(ck, cat);
+
+  // Flojo: prueba correcciones y variantes en paralelo (máx. ~5 s).
+  const toks = norm(q).split(' ').filter(Boolean);
+  const cands = new Set();
+  const [sugs, vids] = await withTimeout(Promise.all([
+    getSuggestions(q).catch(() => []),
+    searchYouTube(`${clean} letra`, 6).catch(() => []),
+  ]), 4500, [[], []]);
+  (sugs || []).slice(0, 3).forEach((x) => cands.add(cleanQuery(x)));
+  (vids || []).slice(0, 4).forEach((v) => { const t = titleOfVideo(v.title); if (t) cands.add(t); });
+  if (toks.length > 2) cands.add(toks.slice(0, -1).join(' '));
+  if (toks.length > 1) cands.add(toks.slice(0, 2).join(' '));
+  const list = [...cands].filter((c) => c && norm(c) !== norm(q) && norm(c) !== norm(clean)).slice(0, 5);
+  if (!list.length) return cSet(ck, cat);
+  const extra = await withTimeout(Promise.all(list.map((c) => rawSearch(c).then((r) => ({ c, r })).catch(() => null))), 5000, []);
+  const via = {};
+  let merged = cat;
+  extra.filter(Boolean).forEach(({ c, r }) => {
+    [...r.tracks, ...r.artists, ...r.albums].forEach((x) => { const k = x.ref || x.id; if (!via[k]) via[k] = c; });
+    merged = mergeCat(merged, r);
+  });
+  return cSet(ck, { ...merged, ...rankAll(q, merged, via) });
+}

@@ -3,6 +3,8 @@ export const PATHS = {
   home: '/',
   weather: '/clima',
   music: '/musica',
+  search: '/musica/buscar',
+  library: '/musica/biblioteca',
   profile: '/perfil',
   community: '/comunidad',
   chat: '/chat',

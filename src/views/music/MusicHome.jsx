@@ -5,6 +5,7 @@ import Marquee from '../../components/Marquee';
 import { Section, SectionTitle, Shelf, SquareCard, SongRow, ShelfSkeleton, RowsSkeleton } from './ui';
 import { PlaylistCard, RoomPlCard } from './RoomCards';
 import VideoLayer from '../../components/VideoLayer';
+import useAmbientColors from '../../hooks/useAmbientColors';
 import useStore from '../../hooks/useStore';
 import { CATEGORIES, MOODS } from './data';
 import { albumPath, artistPath } from '../../services/catalog';
@@ -26,45 +27,66 @@ function ago(ts) {
   return d === 1 ? 'ayer' : `hace ${d} días`;
 }
 
-/** Hero: lo que suena ahora, o una sugerencia destacada real. */
+/** Luz ambiental (como la extensión "Ambient light for YouTube"): cuatro resplandores suaves, uno por esquina,
+ *  que toman los colores del video y cambian despacio. Van detrás de la tarjeta y se desbordan un poco por los bordes. */
+function AmbientGlow({ c, on }) {
+  const blob = (pos, col) => (
+    <span className={`absolute w-[62%] h-[62%] rounded-full ${pos}`} style={{ background: col || 'transparent', transition: 'background-color 2.4s ease, background 2.4s ease', opacity: on ? 1 : 0.55 }} />
+  );
+  return (
+    <div aria-hidden="true" className="absolute -inset-2.5 sm:-inset-4 pointer-events-none" style={{ filter: 'blur(30px) saturate(1.25)', opacity: c ? 0.85 : 0 , transition: 'opacity 1.2s ease' }}>
+      {blob('-top-[14%] -left-[10%]', c?.tl)}{blob('-top-[14%] -right-[10%]', c?.tr)}{blob('-bottom-[14%] -left-[10%]', c?.bl)}{blob('-bottom-[14%] -right-[10%]', c?.br)}
+    </div>
+  );
+}
+
+/** Hero: lo que suena ahora, o una sugerencia destacada real. El video se ve más grande y nítido, con luz ambiental
+ *  alrededor y el texto sobre un panel de cristal para que el título y el artista siempre se lean. */
 function Hero({ p, feat, onPlayFeat, resolving }) {
   const [heroVideo] = useStore('h_hero_video', true); // video de la canción como fondo (Ajustes)
   const t = p.track || feat;
-  if (!t) return <div className="h-52 rounded-[2rem] animate-pulse" style={{ background: 'var(--s2)' }} />;
   const live = !!p.track;
-  const videoBg = heroVideo && live && t.source === 'YouTube' && !!t.videoId;
+  const videoBg = !!t && heroVideo && live && t.source === 'YouTube' && !!t.videoId;
+  const dur = p.time?.dur || t?.duration || 0;
+  const amb = useAmbientColors({ videoId: videoBg ? t.videoId : null, art: t?.art, progress: dur ? (p.time?.cur || 0) / dur : 0 });
+  if (!t) return <div className="h-60 rounded-[2rem] animate-pulse" style={{ background: 'var(--s2)' }} />;
   const go = () => { if (live) p.toggle(); else onPlayFeat(feat); };
   return (
-    <section className="relative overflow-hidden rounded-[2rem] min-h-[13.5rem] sm:min-h-[16rem] flex items-end text-white" style={{ background: '#111' }}>
-      {/* Carátula de la canción de fondo: se ve la imagen (poco desenfoque) y un degradado oscuro a la izquierda para leer el texto */}
-      {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-110 blur-[3px] opacity-95" />}
-      {/* Video de la canción en lugar de la carátula de fondo (sigue la música; si no carga, se queda la carátula) */}
-      {videoBg && (
-        <div className="absolute inset-0" style={{ filter: 'blur(2px)' }}>
-          <VideoLayer key={t.videoId} videoId={t.videoId} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} onFail={() => {}} />
-        </div>
-      )}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 48%, color-mix(in srgb, var(--a) 22%, rgba(0,0,0,.18)) 100%)' }} />
-      <div className="absolute inset-0 pointer-events-none rounded-[2rem]" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.12)' }} />
-      <div className="relative w-full p-5 sm:p-7 flex items-center gap-5">
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-bold tracking-[0.25em] uppercase opacity-80 flex items-center gap-2">
-            {live && p.playing && <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-            {live ? (p.playing ? 'Sonando ahora' : 'En pausa') : 'Para empezar'}
-          </p>
-          <h3 className="serif text-3xl sm:text-5xl font-semibold leading-[1.05] mt-2 line-clamp-2" title={t.title}>{t.title}</h3>
-          <p className="mt-1 text-base sm:text-lg opacity-85 line-clamp-2" title={t.artist}>{t.artist}</p>
-          <div className="mt-4 flex gap-2">
-            <button onClick={go} disabled={resolving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform">
-              {resolving ? <Loader2 size={16} className="animate-spin" /> : live && p.playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-              {live ? (p.playing ? 'Pausar' : 'Continuar') : 'Reproducir'}
-            </button>
-            {live && <button onClick={() => p.openFull?.()} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border border-white/35 backdrop-blur active:scale-95 transition-transform">Abrir reproductor</button>}
+    <div className="relative">
+      <AmbientGlow c={amb} on={live && p.playing} />
+      <section className="relative overflow-hidden rounded-[2rem] min-h-[15.5rem] sm:min-h-[19rem] flex items-end text-white" style={{ background: '#0c0c0f', boxShadow: `inset 0 0 0 1px rgba(255,255,255,.14), 0 14px 40px -18px ${amb?.br || 'rgba(0,0,0,.6)'}` }}>
+        {/* Carátula de fondo (si no hay video) */}
+        {t.art && <img src={t.art} alt="" className="absolute inset-0 w-full h-full object-cover scale-110 blur-[3px] opacity-95" />}
+        {/* Video de la canción, nítido (sigue la música; si no carga, se queda la carátula) */}
+        {videoBg && (
+          <div className="absolute inset-0" style={{ filter: 'saturate(1.1)' }}>
+            <VideoLayer key={t.videoId} videoId={t.videoId} playing={p.playing} getTime={() => p.getCurrentTime?.() || p.time?.cur || 0} onFail={() => {}} />
           </div>
+        )}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,.2) 55%, color-mix(in srgb, var(--a) 14%, rgba(0,0,0,.08)) 100%)' }} />
+        {/* Borde de luz: el color de las esquinas se asoma por dentro del marco */}
+        <div className="absolute inset-0 pointer-events-none rounded-[2rem]" style={{ boxShadow: `inset 0 0 46px -14px ${amb?.tr || 'transparent'}, inset 0 0 0 1px rgba(255,255,255,.12)`, transition: 'box-shadow 2.4s ease' }} />
+        <div className="relative w-full p-3.5 sm:p-5 flex items-end gap-3 sm:gap-4">
+          {/* Panel de cristal: no tapa el video y deja leer título y artista */}
+          <div className="flex-1 min-w-0 rounded-[1.6rem] p-4 sm:p-5 backdrop-blur-xl" style={{ background: 'linear-gradient(135deg, rgba(14,14,18,.5), rgba(14,14,18,.28))', border: '1px solid rgba(255,255,255,.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,.2), 0 10px 30px -14px rgba(0,0,0,.6)' }}>
+            <p className="text-[11px] font-bold tracking-[0.25em] uppercase opacity-85 flex items-center gap-2">
+              {live && p.playing && <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              {live ? (p.playing ? 'Sonando ahora' : 'En pausa') : 'Para empezar'}
+            </p>
+            <h3 className="serif text-2xl sm:text-4xl font-semibold leading-[1.08] mt-1.5 line-clamp-2" title={t.title}>{t.title}</h3>
+            <p className="mt-1 text-sm sm:text-base opacity-85 line-clamp-1" title={t.artist}>{t.artist}</p>
+            <div className="mt-3.5 flex flex-wrap gap-2">
+              <button onClick={go} disabled={resolving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-semibold text-sm active:scale-95 transition-transform">
+                {resolving ? <Loader2 size={16} className="animate-spin" /> : live && p.playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                {live ? (p.playing ? 'Pausar' : 'Continuar') : 'Reproducir'}
+              </button>
+              {live && <button onClick={() => p.openFull?.()} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border border-white/35 backdrop-blur active:scale-95 transition-transform">Abrir reproductor</button>}
+            </div>
+          </div>
+          <Cover src={t.art} className={`w-20 h-20 sm:w-36 sm:h-36 rounded-2xl sm:rounded-3xl shadow-2xl shrink-0 ${live && p.playing ? 'breathe' : ''}`} iconSize={34} />
         </div>
-        <Cover src={t.art} className={`w-24 h-24 sm:w-40 sm:h-40 rounded-2xl sm:rounded-3xl shadow-2xl shrink-0 ${live && p.playing ? 'breathe' : ''}`} iconSize={34} />
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
 

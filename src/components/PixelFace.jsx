@@ -38,7 +38,7 @@ export default function PixelFace({ face = 'feliz', kind, onClick }) {
 
   // Si un PNG falla, se reintenta con la feliz. Solo imágenes, nada más.
   const showSrc = err ? fileOf('feliz') : src;
-  const cls = 'face-pop w-32 h-32 transition active:scale-95';
+  const cls = 'face-pop w-36 h-36 sm:w-44 sm:h-44 transition active:scale-95';
 
   const pixelBody = (
     <svg viewBox="0 0 12 12" className={`w-full h-full ${anim}`} shapeRendering="crispEdges" aria-hidden style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35))' }}>

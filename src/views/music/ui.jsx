@@ -165,17 +165,20 @@ export function SongRow({ n, art, title, sub, duration, explicit, active, playin
 /** (Antes: barra con botón de volver.) Ahora la flecha de volver vive en la cabecera de la app, junto al menú. */
 export function BackBar() { return null; }
 
-/** Chips de filtro (Todo / Canciones / Artistas / Álbumes). */
-export function Chips({ items, value, onChange }) {
+/** Filtros (Todo / Canciones / Artistas / Álbumes): cuadritos compactos, con el activo relleno del color de la app. */
+export function Chips({ items, value, onChange, counts }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-5 px-5 lg:mx-0 lg:px-0" role="tablist">
+    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-5 px-5 lg:mx-0 lg:px-0 scroll-x" role="tablist">
       {items.map(([id, label]) => {
-        const on = value === id;
+        const on = value === id; const n = counts?.[id];
         return (
           <button key={id} role="tab" aria-selected={on} onClick={() => onChange(id)}
-            className="shrink-0 px-4 h-10 rounded-full text-sm font-semibold transition active:scale-95"
-            style={on ? { background: 'var(--a)', color: '#fff' } : { background: 'var(--s2)', color: 'var(--t)', border: '1px solid var(--bd)' }}>
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 h-8 rounded-[10px] text-[13px] font-semibold tracking-[.01em] transition active:scale-95"
+            style={on
+              ? { background: 'var(--a)', color: '#fff', boxShadow: '0 4px 12px -6px var(--a)' }
+              : { background: 'var(--s2)', color: 'var(--t)', border: '1px solid var(--bd)' }}>
             {label}
+            {n > 0 && <span className="text-[10.5px] leading-none px-1.5 py-[3px] rounded-md tabular-nums" style={{ background: on ? 'rgba(255,255,255,.22)' : 'var(--bd)', color: on ? '#fff' : 'var(--m)' }}>{n > 99 ? '99+' : n}</span>}
           </button>
         );
       })}
@@ -197,13 +200,20 @@ export function ShelfSkeleton({ round = false, n = 6 }) {
   );
 }
 
-export function RowsSkeleton({ n = 5 }) {
+/** Esqueleto en forma de LISTA (igual que las filas de canciones): carátula cuadrada, título, subtítulo y duración. */
+const SK_W = [62, 48, 70, 55, 66, 44, 58, 72];
+export function RowsSkeleton({ n = 6, numbered = false }) {
   return (
-    <div className="space-y-2" aria-hidden="true">
+    <div className="space-y-1" aria-hidden="true">
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="flex items-center gap-3 px-2 py-1.5">
-          <div className="skel w-12 h-12 rounded-lg shrink-0" />
-          <div className="flex-1"><div className="skel h-3.5 w-1/2" /><div className="skel h-3 w-1/3 mt-2" /></div>
+        <div key={i} className="flex items-center gap-3 px-2 py-1.5" style={{ animationDelay: `${i * 70}ms` }}>
+          {numbered && <div className="skel w-4 h-3 shrink-0" />}
+          <div className="skel w-14 h-14 rounded-xl shrink-0" style={{ animationDelay: `${i * 70}ms` }} />
+          <div className="flex-1 min-w-0">
+            <div className="skel h-3.5" style={{ width: `${SK_W[i % SK_W.length]}%`, animationDelay: `${i * 70}ms` }} />
+            <div className="skel h-3 mt-2" style={{ width: `${Math.max(24, SK_W[(i + 3) % SK_W.length] - 22)}%`, animationDelay: `${i * 70}ms` }} />
+          </div>
+          <div className="skel h-3 w-8 shrink-0" />
         </div>
       ))}
     </div>
